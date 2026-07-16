@@ -84,10 +84,54 @@ function install(sandbox, config = {}) {
   const LOADING = 3;
   const DONE = 4;
 
+  // ── 私有属性存储（使用 WeakMap 避免暴露在实例上）──
+  const _private = new WeakMap();
+
+  function getPrivate(xhr) {
+    let p = _private.get(xhr);
+    if (!p) {
+      p = {};
+      _private.set(xhr, p);
+    }
+    return p;
+  }
+
   // ── 构造函数 ──
   function XMLHttpRequest() {
-    this._reset();
+    const p = getPrivate(this);
+    p.readyState = UNSENT;
+    p.status = 0;
+    p.statusText = '';
+    p.responseText = '';
+    p.responseXML = null;
+    p.response = '';
+    p.responseType = '';
+    p.responseURL = '';
+    p.timeout = 0;
+    p.withCredentials = false;
+    p.upload = { addEventListener: function() {}, removeEventListener: function() {} };
+    p.method = null;
+    p.url = null;
+    p.async = true;
+    p.user = null;
+    p.password = null;
+    p.requestHeaders = {};
+    p.responseHeaders = null;
+    p.aborted = false;
+    p.listeners = {};
+    p.onreadystatechange = null;
+    p.onload = null;
+    p.onerror = null;
+    p.ontimeout = null;
+    p.onabort = null;
+    p.onloadend = null;
+    p.onprogress = null;
+    p.timer = null;
+    p.body = null;
+    p.overrideMimeType = null;
   }
+
+  makeNative(XMLHttpRequest, 'XMLHttpRequest');
 
   XMLHttpRequest.UNSENT = UNSENT;
   XMLHttpRequest.OPENED = OPENED;
@@ -95,274 +139,328 @@ function install(sandbox, config = {}) {
   XMLHttpRequest.LOADING = LOADING;
   XMLHttpRequest.DONE = DONE;
 
-  const XHRProto = {
-    _reset: makeNative(function() {
-      this.readyState = UNSENT;
-      this.status = 0;
-      this.statusText = '';
-      this.responseText = '';
-      this.responseXML = null;
-      this.response = '';
-      this.responseType = '';
-      this.responseURL = '';
-      this.timeout = 0;
-      this.withCredentials = false;
-      this.upload = { addEventListener: function() {}, removeEventListener: function() {} };
-      this._method = null;
-      this._url = null;
-      this._async = true;
-      this._user = null;
-      this._password = null;
-      this._requestHeaders = {};
-      this._responseHeaders = null;
-      this._aborted = false;
-      this._listeners = {};
-      this._onreadystatechange = null;
-      this._onload = null;
-      this._onerror = null;
-      this._ontimeout = null;
-      this._onabort = null;
-      this._onloadend = null;
-      this._onprogress = null;
-      this._timer = null;
-    }, '_reset'),
+  // ── 内部方法 ──
+  function _setState(xhr, state) {
+    const p = getPrivate(xhr);
+    p.readyState = state;
+    if (p.onreadystatechange) {
+      p.onreadystatechange.call(xhr, { type: 'readystatechange' });
+    }
+    _dispatchEvent(xhr, 'readystatechange');
+  }
 
-    // ── open ──
+  function _dispatchEvent(xhr, type) {
+    const p = getPrivate(xhr);
+    const event = { type, target: xhr };
+    if (p.listeners[type]) {
+      for (const cb of p.listeners[type]) cb(event);
+    }
+    const handlerKey = 'on' + type;
+    if (p[handlerKey]) p[handlerKey].call(xhr, event);
+  }
+
+  function _doSend(xhr) {
+    const p = getPrivate(xhr);
+    const url = new URL(p.url);
+    const isHttps = url.protocol === 'https:';
+    const transport = isHttps ? nodeHttps : nodeHttp;
+
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: p.method,
+      headers: p.requestHeaders,
+      rejectUnauthorized: cfg.rejectUnauthorized !== false
+    };
+
+    return new Promise((resolve, reject) => {
+      const req = transport.request(options, (res) => {
+        p.status = res.statusCode;
+        p.statusText = res.statusMessage || '';
+        p.responseURL = p.url;
+        p.responseHeaders = res.headers;
+        _setState(xhr, HEADERS_RECEIVED);
+
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+          p.responseText = data;
+          if (p.responseType === 'text' || !p.responseType) {
+            p.response = data;
+          }
+          _setState(xhr, LOADING);
+          _dispatchEvent(xhr, 'progress');
+        });
+
+        res.on('end', () => {
+          if (p.timer) {
+            global.clearTimeout(p.timer);
+            p.timer = null;
+          }
+          p.responseText = data;
+          p.response = data;
+          _setState(xhr, DONE);
+          _dispatchEvent(xhr, 'load');
+          _dispatchEvent(xhr, 'loadend');
+          resolve();
+        });
+      });
+
+      req.on('error', (e) => {
+        if (p.timer) {
+          global.clearTimeout(p.timer);
+          p.timer = null;
+        }
+        p.status = 0;
+        _setState(xhr, DONE);
+        _dispatchEvent(xhr, 'error');
+        _dispatchEvent(xhr, 'loadend');
+        reject(e);
+      });
+
+      if (p.body) {
+        req.write(p.body);
+      }
+      req.end();
+    });
+  }
+
+  // ── TLS 异步发送逻辑 ──
+  function _doTlsSend(xhr) {
+    const p = getPrivate(xhr);
+
+    sandbox.__tlsRequest(p.method, p.url, {
+      headers: p.requestHeaders,
+      body: p.body,
+      followRedirects: true
+    }).then(result => {
+      if (p.timer) {
+        global.clearTimeout(p.timer);
+        p.timer = null;
+      }
+      p.status = result.status;
+      p.statusText = result.statusText || '';
+      p.responseURL = p.url;
+      p.responseHeaders = result.headers || {};
+      p.responseText = result.body || '';
+      p.response = result.body || '';
+      _setState(xhr, HEADERS_RECEIVED);
+      _setState(xhr, LOADING);
+      _setState(xhr, DONE);
+      _dispatchEvent(xhr, 'load');
+      _dispatchEvent(xhr, 'loadend');
+    }).catch(e => {
+      if (p.timer) {
+        global.clearTimeout(p.timer);
+        p.timer = null;
+      }
+      p.status = 0;
+      _setState(xhr, DONE);
+      _dispatchEvent(xhr, 'error');
+      _dispatchEvent(xhr, 'loadend');
+    });
+  }
+
+  // ── 原型方法（全部设为不可枚举）──
+  const protoMethods = {
     open: makeNative(function open(method, url, async, user, password) {
-      this._method = (method || 'GET').toUpperCase();
-      this._url = url;
-      this._async = async !== false;
-      if (user) this._user = user;
-      if (password) this._password = password;
-      this._aborted = false;
-      this._setState(OPENED);
+      const p = getPrivate(this);
+      p.method = (method || 'GET').toUpperCase();
+      p.url = url;
+      p.async = async !== false;
+      if (user) p.user = user;
+      if (password) p.password = password;
+      p.aborted = false;
+      _setState(this, OPENED);
     }, 'open'),
 
-    // ── setRequestHeader ──
     setRequestHeader: makeNative(function setRequestHeader(name, value) {
-      if (this.readyState !== OPENED) {
+      const p = getPrivate(this);
+      if (p.readyState !== OPENED) {
         throw new DOMException('Failed to execute \'setRequestHeader\' on \'XMLHttpRequest\': The object\'s state must be OPENED.');
       }
-      this._requestHeaders[name] = value;
+      p.requestHeaders[name] = value;
     }, 'setRequestHeader'),
 
-    // ── send ──
     send: makeNative(function send(body) {
-      if (this.readyState !== OPENED) {
+      const p = getPrivate(this);
+      if (p.readyState !== OPENED) {
         throw new DOMException('Failed to execute \'send\' on \'XMLHttpRequest\': The object\'s state must be OPENED.');
       }
-      this._aborted = false;
-      this._body = body;
+      p.aborted = false;
+      p.body = body;
 
-      // timeout 处理
-      if (this.timeout > 0) {
-        this._timer = global.setTimeout(() => {
-          if (this.readyState !== DONE) {
-            this._onerror && this._onerror({ type: 'timeout' });
-            this._ontimeout && this._ontimeout({ type: 'timeout' });
-            this._dispatchEvent('timeout');
-            this._abort();
+      if (p.timeout > 0) {
+        p.timer = global.setTimeout(() => {
+          if (p.readyState !== DONE) {
+            p.onerror && p.onerror({ type: 'timeout' });
+            p.ontimeout && p.ontimeout({ type: 'timeout' });
+            _dispatchEvent(this, 'timeout');
+            p.aborted = true;
           }
-        }, this.timeout);
+        }, p.timeout);
       }
 
-      if (this._async) {
+      if (p.async) {
         // 异步模式
         global.setTimeout(() => {
           try {
-            this._doSend();
+            // 优先使用 TLS session
+            if (sandbox.__tlsRequest) {
+              _doTlsSend(this);
+            } else {
+              _doSend(this);
+            }
           } catch (e) {
-            this._onerror && this._onerror(e);
-            this._dispatchEvent('error');
+            p.onerror && p.onerror(e);
+            _dispatchEvent(this, 'error');
           }
         }, 0);
       } else {
-        // 同步模式 — 子进程阻塞请求，返回时 readyState 已为 DONE
+        // 同步模式 — 子进程阻塞请求
         try {
           const result = syncHttpRequest(
-            this._method,
-            this._url,
-            this._requestHeaders,
-            this._body,
-            this.timeout || 30000
+            p.method,
+            p.url,
+            p.requestHeaders,
+            p.body,
+            p.timeout || 30000
           );
-          this.status = result.status;
-          this.statusText = result.statusText;
-          this.responseURL = this._url;
-          this._responseHeaders = result.headers;
-          this.responseText = result.data;
-          this.response = result.data;
-          this._setState(HEADERS_RECEIVED);
-          this._setState(LOADING);
-          this._setState(DONE);
-          this._dispatchEvent('load');
-          this._dispatchEvent('loadend');
+          p.status = result.status;
+          p.statusText = result.statusText;
+          p.responseURL = p.url;
+          p.responseHeaders = result.headers;
+          p.responseText = result.data;
+          p.response = result.data;
+          _setState(this, HEADERS_RECEIVED);
+          _setState(this, LOADING);
+          _setState(this, DONE);
+          _dispatchEvent(this, 'load');
+          _dispatchEvent(this, 'loadend');
         } catch (e) {
-          this.status = 0;
-          this._setState(DONE);
-          this._onerror && this._onerror(e);
-          this._dispatchEvent('error');
-          this._dispatchEvent('loadend');
+          p.status = 0;
+          _setState(this, DONE);
+          p.onerror && p.onerror(e);
+          _dispatchEvent(this, 'error');
+          _dispatchEvent(this, 'loadend');
           throw e;
         }
       }
     }, 'send'),
 
-    // ── 内部发送逻辑（返回 Promise）──
-    _doSend: makeNative(function _doSend() {
-      const url = new URL(this._url);
-      const isHttps = url.protocol === 'https:';
-      const transport = isHttps ? nodeHttps : nodeHttp;
-      const xhr = this;
-
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: url.pathname + url.search,
-        method: this._method,
-        headers: this._requestHeaders,
-        rejectUnauthorized: cfg.rejectUnauthorized !== false
-      };
-
-      return new Promise((resolve, reject) => {
-        const req = transport.request(options, (res) => {
-          xhr.status = res.statusCode;
-          xhr.statusText = res.statusMessage || '';
-          xhr.responseURL = xhr._url;
-          xhr._responseHeaders = res.headers;
-          xhr._setState(HEADERS_RECEIVED);
-
-          let data = '';
-          res.on('data', (chunk) => {
-            data += chunk;
-            xhr.responseText = data;
-            if (xhr.responseType === 'text' || !xhr.responseType) {
-              xhr.response = data;
-            }
-            xhr._setState(LOADING);
-            xhr._dispatchEvent('progress');
-          });
-
-          res.on('end', () => {
-            if (xhr._timer) {
-              global.clearTimeout(xhr._timer);
-              xhr._timer = null;
-            }
-            xhr.responseText = data;
-            xhr.response = data;
-            xhr._setState(DONE);
-            xhr._dispatchEvent('load');
-            xhr._dispatchEvent('loadend');
-            resolve();
-          });
-        });
-
-        req.on('error', (e) => {
-          if (xhr._timer) {
-            global.clearTimeout(xhr._timer);
-            xhr._timer = null;
-          }
-          xhr.status = 0;
-          xhr._setState(DONE);
-          xhr._dispatchEvent('error');
-          xhr._dispatchEvent('loadend');
-          reject(e);
-        });
-
-        if (xhr._body) {
-          req.write(xhr._body);
-        }
-        req.end();
-      });
-    }, '_doSend'),
-
-    // ── abort ──
     abort: makeNative(function abort() {
-      this._aborted = true;
-      if (this._timer) {
-        global.clearTimeout(this._timer);
-        this._timer = null;
+      const p = getPrivate(this);
+      p.aborted = true;
+      if (p.timer) {
+        global.clearTimeout(p.timer);
+        p.timer = null;
       }
-      this._dispatchEvent('abort');
-      this._dispatchEvent('loadend');
-      this._setState(UNSENT);
+      _dispatchEvent(this, 'abort');
+      _dispatchEvent(this, 'loadend');
+      p.readyState = UNSENT;
     }, 'abort'),
 
-    // ── getResponseHeader ──
     getResponseHeader: makeNative(function getResponseHeader(name) {
-      if (this.readyState < HEADERS_RECEIVED) return null;
-      if (!this._responseHeaders) return null;
-      const val = this._responseHeaders[name.toLowerCase()];
+      const p = getPrivate(this);
+      if (p.readyState < HEADERS_RECEIVED) return null;
+      if (!p.responseHeaders) return null;
+      const val = p.responseHeaders[name.toLowerCase()];
       return val ? String(val) : null;
     }, 'getResponseHeader'),
 
-    // ── getAllResponseHeaders ──
     getAllResponseHeaders: makeNative(function getAllResponseHeaders() {
-      if (this.readyState < HEADERS_RECEIVED) return '';
-      if (!this._responseHeaders) return '';
-      return Object.entries(this._responseHeaders)
+      const p = getPrivate(this);
+      if (p.readyState < HEADERS_RECEIVED) return '';
+      if (!p.responseHeaders) return '';
+      return Object.entries(p.responseHeaders)
         .map(([k, v]) => `${k}: ${v}`)
         .join('\r\n') + '\r\n';
     }, 'getAllResponseHeaders'),
 
-    // ── overrideMimeType ──
     overrideMimeType: makeNative(function overrideMimeType(mime) {
-      this._overrideMimeType = mime;
+      const p = getPrivate(this);
+      p.overrideMimeType = mime;
     }, 'overrideMimeType'),
 
-    // ── 状态变更 ──
-    _setState: makeNative(function _setState(state) {
-      this.readyState = state;
-      if (this._onreadystatechange) {
-        this._onreadystatechange({ type: 'readystatechange' });
-      }
-      this._dispatchEvent('readystatechange');
-    }, '_setState'),
-
-    // ── 事件处理 ──
     addEventListener: makeNative(function addEventListener(type, callback) {
-      if (!this._listeners[type]) this._listeners[type] = [];
-      this._listeners[type].push(callback);
+      const p = getPrivate(this);
+      if (!p.listeners[type]) p.listeners[type] = [];
+      p.listeners[type].push(callback);
     }, 'addEventListener'),
 
     removeEventListener: makeNative(function removeEventListener(type, callback) {
-      if (!this._listeners[type]) return;
-      this._listeners[type] = this._listeners[type].filter(cb => cb !== callback);
-    }, 'removeEventListener'),
-
-    _dispatchEvent: makeNative(function _dispatchEvent(type) {
-      const event = { type, target: this };
-      if (this._listeners[type]) {
-        for (const cb of this._listeners[type]) cb(event);
-      }
-      // 调用 on* 处理程序
-      const handlerKey = 'on' + type;
-      if (this[handlerKey]) this[handlerKey](event);
-    }, '_dispatchEvent')
+      const p = getPrivate(this);
+      if (!p.listeners[type]) return;
+      p.listeners[type] = p.listeners[type].filter(cb => cb !== callback);
+    }, 'removeEventListener')
   };
 
-  // 复制原型
-  for (const key of Object.keys(XHRProto)) {
-    XMLHttpRequest.prototype[key] = XHRProto[key];
-  }
-
-  // ── readyState 常量 ──
-  const constants = { UNSENT, OPENED, HEADERS_RECEIVED, LOADING, DONE };
-  for (const [k, v] of Object.entries(constants)) {
-    Object.defineProperty(XMLHttpRequest.prototype, k, {
-      value: v, writable: false, configurable: false, enumerable: true
+  for (const [name, fn] of Object.entries(protoMethods)) {
+    Object.defineProperty(XMLHttpRequest.prototype, name, {
+      value: fn,
+      writable: true,
+      configurable: true,
+      enumerable: false
     });
   }
 
+  // ── 实例属性的 getter/setter（模拟浏览器的可枚举属性）──
+  const instanceProps = [
+    'readyState', 'status', 'statusText', 'responseText', 'responseXML',
+    'response', 'responseType', 'responseURL', 'timeout', 'withCredentials',
+    'upload'
+  ];
+
+  for (const prop of instanceProps) {
+    Object.defineProperty(XMLHttpRequest.prototype, prop, {
+      get: makeNative(function() {
+        return getPrivate(this)[prop];
+      }, `get ${prop}`),
+      set: makeNative(function(val) {
+        getPrivate(this)[prop] = val;
+      }, `set ${prop}`),
+      configurable: true,
+      enumerable: true
+    });
+  }
+
+  // ── on* 事件处理器 ──
+  const eventHandlers = [
+    'onreadystatechange', 'onload', 'onerror', 'ontimeout',
+    'onabort', 'onloadend', 'onprogress'
+  ];
+
+  for (const handler of eventHandlers) {
+    Object.defineProperty(XMLHttpRequest.prototype, handler, {
+      get: makeNative(function() {
+        return getPrivate(this)[handler];
+      }, `get ${handler}`),
+      set: makeNative(function(val) {
+        getPrivate(this)[handler] = val;
+      }, `set ${handler}`),
+      configurable: true,
+      enumerable: true
+    });
+  }
+
+  // ── readyState 常量（原型上，不可枚举）──
+  const constants = { UNSENT, OPENED, HEADERS_RECEIVED, LOADING, DONE };
+  for (const [k, v] of Object.entries(constants)) {
+    Object.defineProperty(XMLHttpRequest.prototype, k, {
+      value: v, writable: false, configurable: false, enumerable: false
+    });
+  }
+
+  // ── 构造函数属性 ──
+  Object.defineProperty(XMLHttpRequest, 'UNSENT', { value: UNSENT, writable: false, configurable: false, enumerable: true });
+  Object.defineProperty(XMLHttpRequest, 'OPENED', { value: OPENED, writable: false, configurable: false, enumerable: true });
+  Object.defineProperty(XMLHttpRequest, 'HEADERS_RECEIVED', { value: HEADERS_RECEIVED, writable: false, configurable: false, enumerable: true });
+  Object.defineProperty(XMLHttpRequest, 'LOADING', { value: LOADING, writable: false, configurable: false, enumerable: true });
+  Object.defineProperty(XMLHttpRequest, 'DONE', { value: DONE, writable: false, configurable: false, enumerable: true });
+
   // ── 安装 ──
   sandbox.XMLHttpRequest = XMLHttpRequest;
-
-  // 确保在全局也可见
-  sandbox.XMLHttpRequest.UNSENT = UNSENT;
-  sandbox.XMLHttpRequest.OPENED = OPENED;
-  sandbox.XMLHttpRequest.HEADERS_RECEIVED = HEADERS_RECEIVED;
-  sandbox.XMLHttpRequest.LOADING = LOADING;
-  sandbox.XMLHttpRequest.DONE = DONE;
 }
 
 module.exports = { install };

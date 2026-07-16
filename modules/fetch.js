@@ -15,12 +15,34 @@ const nodeUrl = require('url');
 function install(sandbox, config = {}) {
   const cfg = config.fetch || {};
 
+  // ── 私有属性 WeakMap ──
+  const _headersPrivate = new WeakMap();
+  const _responsePrivate = new WeakMap();
+  const _requestPrivate = new WeakMap();
+
+  function getHP(h) {
+    let p = _headersPrivate.get(h);
+    if (!p) { p = { map: new Map() }; _headersPrivate.set(h, p); }
+    return p;
+  }
+  function getRP(r) {
+    let p = _responsePrivate.get(r);
+    if (!p) { p = {}; _responsePrivate.set(r, p); }
+    return p;
+  }
+  function getReqP(r) {
+    let p = _requestPrivate.get(r);
+    if (!p) { p = {}; _requestPrivate.set(r, p); }
+    return p;
+  }
+
   // ── Headers ──
   function Headers(init) {
-    this._map = new Map();
+    const p = getHP(this);
     if (init) {
       if (init instanceof Headers) {
-        for (const [k, v] of init._map) this._map.set(k, v);
+        const op = getHP(init);
+        for (const [k, v] of op.map) p.map.set(k, v);
       } else if (Array.isArray(init)) {
         for (const [k, v] of init) this.append(k, v);
       } else if (typeof init === 'object') {
@@ -28,112 +50,177 @@ function install(sandbox, config = {}) {
       }
     }
   }
+
   makeNative(Headers, 'Headers');
-  Headers.prototype.append = makeNative(function(name, value) {
-    this._map.set(name.toLowerCase(), String(value));
-  }, 'append');
-  Headers.prototype.delete = makeNative(function(name) {
-    this._map.delete(name.toLowerCase());
-  }, 'delete');
-  Headers.prototype.get = makeNative(function(name) {
-    return this._map.get(name.toLowerCase()) || null;
-  }, 'get');
-  Headers.prototype.has = makeNative(function(name) {
-    return this._map.has(name.toLowerCase());
-  }, 'has');
-  Headers.prototype.set = makeNative(function(name, value) {
-    this._map.set(name.toLowerCase(), String(value));
-  }, 'set');
-  Headers.prototype.forEach = makeNative(function(cb) {
-    this._map.forEach((v, k) => cb(v, k, this));
-  }, 'forEach');
-  Headers.prototype.entries = makeNative(function() {
-    return this._map.entries();
-  }, 'entries');
-  Headers.prototype.keys = makeNative(function() {
-    return this._map.keys();
-  }, 'keys');
-  Headers.prototype.values = makeNative(function() {
-    return this._map.values();
-  }, 'values');
-  Headers.prototype[Symbol.iterator] = function() { return this._map.entries(); };
+
+  const headerMethods = {
+    append: makeNative(function(name, value) {
+      getHP(this).map.set(name.toLowerCase(), String(value));
+    }, 'append'),
+    delete: makeNative(function(name) {
+      getHP(this).map.delete(name.toLowerCase());
+    }, 'delete'),
+    get: makeNative(function(name) {
+      return getHP(this).map.get(name.toLowerCase()) || null;
+    }, 'get'),
+    has: makeNative(function(name) {
+      return getHP(this).map.has(name.toLowerCase());
+    }, 'has'),
+    set: makeNative(function(name, value) {
+      getHP(this).map.set(name.toLowerCase(), String(value));
+    }, 'set'),
+    forEach: makeNative(function(cb) {
+      const self = this;
+      getHP(this).map.forEach((v, k) => cb(v, k, self));
+    }, 'forEach'),
+    entries: makeNative(function() {
+      return getHP(this).map.entries();
+    }, 'entries'),
+    keys: makeNative(function() {
+      return getHP(this).map.keys();
+    }, 'keys'),
+    values: makeNative(function() {
+      return getHP(this).map.values();
+    }, 'values')
+  };
+
+  for (const [name, fn] of Object.entries(headerMethods)) {
+    Object.defineProperty(Headers.prototype, name, {
+      value: fn, writable: true, configurable: true, enumerable: false
+    });
+  }
+
+  Object.defineProperty(Headers.prototype, Symbol.iterator, {
+    value: function() { return getHP(this).map.entries(); },
+    writable: true, configurable: true, enumerable: false
+  });
 
   // ── Response ──
-  function Response(body, init = {}) {
-    this._body = body;
-    this.status = init.status || 200;
-    this.statusText = init.statusText || 'OK';
-    this.ok = this.status >= 200 && this.status < 300;
-    this.redirected = false;
-    this.type = 'basic';
-    this.url = init.url || '';
-    this._headers = init.headers || new Headers();
-    this._bodyUsed = false;
+  function Response(body, init) {
+    init = init || {};
+    const p = getRP(this);
+    p.body = body;
+    p.status = init.status || 200;
+    p.statusText = init.statusText || 'OK';
+    p.ok = p.status >= 200 && p.status < 300;
+    p.redirected = false;
+    p.type = 'basic';
+    p.url = init.url || '';
+    p.headers = init.headers || new Headers();
+    p.bodyUsed = false;
   }
+
   makeNative(Response, 'Response');
 
-  Response.prototype = {
-    get headers() { return this._headers; },
-    get bodyUsed() { return this._bodyUsed; },
+  Object.defineProperty(Response.prototype, 'headers', {
+    get: makeNative(function() { return getRP(this).headers; }, 'get headers'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'bodyUsed', {
+    get: makeNative(function() { return getRP(this).bodyUsed; }, 'get bodyUsed'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'ok', {
+    get: makeNative(function() { return getRP(this).ok; }, 'get ok'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'status', {
+    get: makeNative(function() { return getRP(this).status; }, 'get status'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'statusText', {
+    get: makeNative(function() { return getRP(this).statusText; }, 'get statusText'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'redirected', {
+    get: makeNative(function() { return getRP(this).redirected; }, 'get redirected'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'type', {
+    get: makeNative(function() { return getRP(this).type; }, 'get type'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Response.prototype, 'url', {
+    get: makeNative(function() { return getRP(this).url; }, 'get url'),
+    configurable: true, enumerable: true
+  });
 
+  const responseMethods = {
     text: makeNative(function text() {
-      this._bodyUsed = true;
-      return _Thenable(String(this._body || ''));
+      const p = getRP(this);
+      p.bodyUsed = true;
+      return _Thenable(String(p.body || ''));
     }, 'text'),
-
     json: makeNative(function json() {
-      this._bodyUsed = true;
+      const p = getRP(this);
+      p.bodyUsed = true;
       try {
-        return _Thenable(JSON.parse(String(this._body || '{}')));
+        return _Thenable(JSON.parse(String(p.body || '{}')));
       } catch (e) {
         return _Thenable(null);
       }
     }, 'json'),
-
     blob: makeNative(function blob() {
-      this._bodyUsed = true;
-      return _Thenable({ size: (this._body || '').length, type: '' });
+      const p = getRP(this);
+      p.bodyUsed = true;
+      return _Thenable({ size: (p.body || '').length, type: '' });
     }, 'blob'),
-
     arrayBuffer: makeNative(function arrayBuffer() {
-      this._bodyUsed = true;
-      const buf = Buffer.from(String(this._body || ''), 'utf-8');
+      const p = getRP(this);
+      p.bodyUsed = true;
+      const buf = Buffer.from(String(p.body || ''), 'utf-8');
       const ab = new ArrayBuffer(buf.length);
       new Uint8Array(ab).set(buf);
       return _Thenable(ab);
     }, 'arrayBuffer'),
-
     clone: makeNative(function clone() {
-      return new Response(this._body, { status: this.status, statusText: this.statusText, headers: this._headers, url: this.url });
+      const p = getRP(this);
+      return new Response(p.body, { status: p.status, statusText: p.statusText, headers: p.headers, url: p.url });
     }, 'clone')
   };
-  Object.defineProperty(Response.prototype, 'headers', {
-    get: makeNative(function() { return this._headers; }, 'get headers'),
-    configurable: true, enumerable: true
-  });
-  Object.defineProperty(Response.prototype, 'bodyUsed', {
-    get: makeNative(function() { return this._bodyUsed; }, 'get bodyUsed'),
-    configurable: true, enumerable: true
-  });
 
-  // ── Thenable（同步执行，不依赖微任务队列）──
-  function _Thenable(value) { this._value = value; }
-  _Thenable.prototype.then = function(onFulfilled, onRejected) {
-    try {
-      if (onFulfilled) return new _Thenable(onFulfilled(this._value));
-      return new _Thenable(this._value);
-    } catch (e) {
-      if (onRejected) return new _Thenable(onRejected(e));
-      return new _Thenable(null);
+  for (const [name, fn] of Object.entries(responseMethods)) {
+    Object.defineProperty(Response.prototype, name, {
+      value: fn, writable: true, configurable: true, enumerable: false
+    });
+  }
+
+  // ── Thenable（支持同步和异步两种模式）──
+  function _Thenable(value) {
+    const obj = {};
+
+    // 如果 value 是 Promise/Thenable，异步处理
+    if (value && typeof value.then === 'function') {
+      obj._promise = value;
+      obj.then = function(onFulfilled, onRejected) {
+        return _Thenable(value.then(onFulfilled, onRejected));
+      };
+      obj.catch = function(onRejected) {
+        return _Thenable(value.catch(onRejected));
+      };
+    } else {
+      // 同步模式（不依赖微任务队列）
+      obj._value = value;
+      obj.then = function(onFulfilled, onRejected) {
+        try {
+          if (onFulfilled) return _Thenable(onFulfilled(obj._value));
+          return _Thenable(obj._value);
+        } catch (e) {
+          if (onRejected) return _Thenable(onRejected(e));
+          return _Thenable(null);
+        }
+      };
+      obj.catch = function(onRejected) {
+        return obj.then(null, onRejected);
+      };
     }
-  };
-  _Thenable.prototype.catch = function(onRejected) {
-    return this.then(null, onRejected);
-  };
+
+    return obj;
+  }
 
   // ── fetch 实现 ──
-  sandbox.fetch = makeNative(function fetch(url, options = {}) {
-    return _doFetch(url, options);
+  sandbox.fetch = makeNative(function fetch(url, options) {
+    return _doFetch(url, options || {});
   }, 'fetch');
 
   sandbox.__fetchModule = _doFetch;
@@ -143,11 +230,47 @@ function install(sandbox, config = {}) {
     const method = (options.method || 'GET').toUpperCase();
     const headers = options.headers || {};
     const body = options.body || null;
-    // 用于控制重定向
     let redirect = options.redirect || 'follow';
     let maxRedirects = 10;
 
+    // 优先使用 TLS session（如果已初始化）
+    if (sandbox.__tlsRequest) {
+      return _tlsFetch(url, method, headers, body, redirect);
+    }
+
     return _httpRequest(url, method, headers, body, 0, maxRedirects, redirect);
+  }
+
+  // ── TLS fetch（使用 node-tls-client）──
+  function _tlsFetch(url, method, headers, body, redirectMode) {
+    const promise = Promise.resolve()
+      .then(() => sandbox.__tlsRequest(method, url, {
+        headers: headers,
+        body: body,
+        followRedirects: redirectMode === 'follow'
+      }))
+      .then(result => {
+        const respHeaders = new Headers();
+        if (result.headers) {
+          for (const [k, v] of Object.entries(result.headers)) {
+            if (v !== undefined) {
+              if (Array.isArray(v)) v.forEach(x => respHeaders.append(k, x));
+              else respHeaders.append(k, String(v));
+            }
+          }
+        }
+        return new Response(result.body, {
+          status: result.status,
+          statusText: result.statusText,
+          headers: respHeaders,
+          url: result.url || url
+        });
+      })
+      .catch(e => {
+        throw new TypeError('fetch failed: ' + (e.message || e));
+      });
+
+    return _Thenable(promise);
   }
 
   function _httpRequest(url, method, headers, body, redirectCount, maxRedirects, redirectMode) {
@@ -166,7 +289,7 @@ function install(sandbox, config = {}) {
           path: parsed.path || '/',
           method: method,
           headers: headers,
-          rejectUnauthorized: false // 允许自签名证书
+          rejectUnauthorized: false
         };
 
         const req = transport.request(options, (res) => {
@@ -181,7 +304,6 @@ function install(sandbox, config = {}) {
               }
             }
 
-            // 处理重定向
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
               if (redirectMode !== 'follow' || redirectCount >= maxRedirects) {
                 const resp = new Response(data, {
@@ -193,7 +315,6 @@ function install(sandbox, config = {}) {
                 result = resp;
                 return;
               }
-              // 跟随重定向
               const redirectUrl = nodeUrl.resolve(url, res.headers.location);
               const redirected = _httpRequest(redirectUrl, method, headers, body, redirectCount + 1, maxRedirects, redirectMode);
               result = redirected._value;
@@ -222,23 +343,39 @@ function install(sandbox, config = {}) {
         error = e;
       }
 
-      // 同步等待（在 VM 环境中这是可行的，因为 Node.js 使用事件循环）
-      // 实际上这里需要异步等待，但在同步 Thenable 模式中是阻塞的
       if (error) throw error;
       return result;
     });
   }
 
+  // ── Request ──
+  function Request(url, init) {
+    const p = getReqP(this);
+    p.url = url;
+    p.method = (init && init.method) || 'GET';
+    p.headers = (init && init.headers) || new Headers();
+    p.body = (init && init.body) || null;
+  }
+
+  makeNative(Request, 'Request');
+
+  Object.defineProperty(Request.prototype, 'url', {
+    get: makeNative(function() { return getReqP(this).url; }, 'get url'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Request.prototype, 'method', {
+    get: makeNative(function() { return getReqP(this).method; }, 'get method'),
+    configurable: true, enumerable: true
+  });
+  Object.defineProperty(Request.prototype, 'headers', {
+    get: makeNative(function() { return getReqP(this).headers; }, 'get headers'),
+    configurable: true, enumerable: true
+  });
+
   // ── 安装 ──
   sandbox.Headers = Headers;
   sandbox.Response = Response;
-  sandbox.Request = function Request(url, init) {
-    this.url = url;
-    this.method = (init && init.method) || 'GET';
-    this.headers = (init && init.headers) || new Headers();
-    this.body = (init && init.body) || null;
-  };
-  makeNative(sandbox.Request, 'Request');
+  sandbox.Request = Request;
 }
 
 module.exports = { install };

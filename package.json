@@ -1,0 +1,27 @@
+{
+  "name": "browser-env",
+  "version": "1.0.0",
+  "description": "**Node.js 浏览器补环境框架** — 在 Node.js `vm` 沙箱中构建完整的浏览器环境，用于 JS 逆向分析。",
+  "main": "index.js",
+  "directories": {
+    "example": "examples",
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "node examples/h5st.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DreamXiaoJing/browser-env.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DreamXiaoJing/browser-env/issues"
+  },
+  "homepage": "https://github.com/DreamXiaoJing/browser-env#readme",
+  "dependencies": {
+    "node-tls-client": "^2.1.0"
+  }
+}

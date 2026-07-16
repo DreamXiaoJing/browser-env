@@ -5,6 +5,7 @@ const { loadModules, loadDefaultModules } = require('./lib/module-loader');
 const { createProxyObserver, startObserving, stopObserving, flushLog, getSummary, wrapSandboxForTracing } = require('./lib/proxy-observer');
 const { protectGlobalFunctionToString, protectErrorStack } = require('./lib/guard');
 const { fixDocumentAll } = require('./lib/document-all-fix');
+const { initTLSClient, destroyTLSClient, isInitialized: isTLSInitialized, tlsRequest } = require('./lib/tls-client');
 
 /**
  * BrowserEnv — Node.js 浏览器补环境框架
@@ -97,7 +98,60 @@ class BrowserEnv {
       startObserving();
     }
 
+    // 6. 如果配置了 TLS，暴露 TLS 请求函数给沙箱
+    if (this.config.tls) {
+      this.sandbox.__tlsRequest = tlsRequest;
+    }
+
     return this.sandbox;
+  }
+
+  /**
+   * 初始化 TLS 客户端（模拟浏览器 TLS 指纹）
+   * @param {object} tlsConfig - TLS 配置
+   * @param {string} tlsConfig.clientIdentifier - 客户端标识符，如 'chrome_131'
+   * @param {number} tlsConfig.timeout - 请求超时（毫秒）
+   * @param {boolean} tlsConfig.insecureSkipVerify - 跳过证书验证
+   * @param {boolean} tlsConfig.randomTlsExtensionOrder - 随机化 TLS 扩展顺序
+   * @param {string} tlsConfig.proxy - 代理服务器
+   * @returns {Promise<void>}
+   */
+  async initTLS(tlsConfig = {}) {
+    if (!this.sandbox) {
+      throw new Error('BrowserEnv not created yet. Call create() first.');
+    }
+
+    // 自动从沙箱 navigator 提取浏览器信息
+    const nav = this.sandbox.navigator || {};
+    const browserInfo = {
+      userAgent: nav.userAgent,
+      language: nav.language,
+      languages: nav.languages,
+      userAgentData: nav.userAgentData,
+      isMobile: nav.userAgentData ? nav.userAgentData.mobile : false
+    };
+
+    const config = {
+      ...this.config.tls,
+      ...tlsConfig,
+      userAgent: tlsConfig.userAgent || browserInfo.userAgent,
+      browserInfo
+    };
+    await initTLSClient(config);
+
+    // 暴露 TLS 请求函数给沙箱
+    this.sandbox.__tlsRequest = tlsRequest;
+  }
+
+  /**
+   * 销毁 TLS 客户端
+   * @returns {Promise<void>}
+   */
+  async destroyTLS() {
+    await destroyTLSClient();
+    if (this.sandbox) {
+      delete this.sandbox.__tlsRequest;
+    }
   }
 
   /**
@@ -328,6 +382,10 @@ class BrowserEnv {
     if (this._proxyEnabled) {
       stopObserving();
     }
+    // 异步销毁 TLS（不阻塞）
+    if (isTLSInitialized()) {
+      destroyTLSClient().catch(() => {});
+    }
     this.sandbox = null;
   }
 }
@@ -352,6 +410,8 @@ function createEnv(config = {}, code) {
   ret.stopTracing = env.stopTracing.bind(env);
   ret.loadUrl = env.loadUrl.bind(env);
   ret.parseHtml = env.parseHtml.bind(env);
+  ret.initTLS = env.initTLS.bind(env);
+  ret.destroyTLS = env.destroyTLS.bind(env);
   return new Proxy(ret, {
     get: function(target, prop) {
       if (prop in target) return target[prop];
