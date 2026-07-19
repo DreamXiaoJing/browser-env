@@ -590,12 +590,77 @@ function install(sandbox, config = {}) {
   }
   makeNative(getComputedStyle, 'getComputedStyle');
 
+  // ── CSSRule 及相关常量（部分网站依赖 CSSRule 类型判断）──
+  function CSSRule() {}
+  makeNative(CSSRule, 'CSSRule');
+  // 常见 type 常量
+  CSSRule.STYLE_RULE = 1;
+  CSSRule.CHARSET_RULE = 2;
+  CSSRule.IMPORT_RULE = 3;
+  CSSRule.MEDIA_RULE = 4;
+  CSSRule.FONT_FACE_RULE = 5;
+  CSSRule.PAGE_RULE = 6;
+  CSSRule.KEYFRAMES_RULE = 7;
+  CSSRule.KEYFRAME_RULE = 8;
+  CSSRule.NAMESPACE_RULE = 10;
+  CSSRule.COUNTER_STYLE_RULE = 11;
+  CSSRule.SUPPORTS_RULE = 12;
+  CSSRule.DOCUMENT_RULE = 13;
+  CSSRule.FONT_FEATURE_VALUES_RULE = 14;
+  CSSRule.VIEWPORT_RULE = 15;
+  CSSRule.REGION_STYLE_RULE = 16;
+
+  // CSSStyleRule 等子类（最小实现）
+  function CSSStyleRule() {}
+  makeNative(CSSStyleRule, 'CSSStyleRule');
+  Object.setPrototypeOf(CSSStyleRule.prototype, CSSRule.prototype);
+  CSSStyleRule.prototype.constructor = CSSStyleRule;
+
+  function CSSMediaRule() {}
+  makeNative(CSSMediaRule, 'CSSMediaRule');
+  Object.setPrototypeOf(CSSMediaRule.prototype, CSSRule.prototype);
+
+  function CSSKeyframesRule() {}
+  makeNative(CSSKeyframesRule, 'CSSKeyframesRule');
+  Object.setPrototypeOf(CSSKeyframesRule.prototype, CSSRule.prototype);
+
+  function CSSKeyframeRule() {}
+  makeNative(CSSKeyframeRule, 'CSSKeyframeRule');
+  Object.setPrototypeOf(CSSKeyframeRule.prototype, CSSRule.prototype);
+
+  function CSSImportRule() {}
+  makeNative(CSSImportRule, 'CSSImportRule');
+  Object.setPrototypeOf(CSSImportRule.prototype, CSSRule.prototype);
+
+  function CSSFontFaceRule() {}
+  makeNative(CSSFontFaceRule, 'CSSFontFaceRule');
+  Object.setPrototypeOf(CSSFontFaceRule.prototype, CSSRule.prototype);
+
+  function CSSStyleSheet() {}
+  makeNative(CSSStyleSheet, 'CSSStyleSheet');
+
   // ── 安装到 sandbox ──
   sandbox.CSSStyleDeclaration = CSSStyleDeclaration;
+  sandbox.CSSRule = CSSRule;
+  sandbox.CSSStyleRule = CSSStyleRule;
+  sandbox.CSSMediaRule = CSSMediaRule;
+  sandbox.CSSKeyframesRule = CSSKeyframesRule;
+  sandbox.CSSKeyframeRule = CSSKeyframeRule;
+  sandbox.CSSImportRule = CSSImportRule;
+  sandbox.CSSFontFaceRule = CSSFontFaceRule;
+  sandbox.CSSStyleSheet = CSSStyleSheet;
   sandbox.getComputedStyle = getComputedStyle;
   if (sandbox.window) {
     sandbox.window.getComputedStyle = getComputedStyle;
     sandbox.window.CSSStyleDeclaration = CSSStyleDeclaration;
+    sandbox.window.CSSRule = CSSRule;
+    sandbox.window.CSSStyleRule = CSSStyleRule;
+    sandbox.window.CSSMediaRule = CSSMediaRule;
+    sandbox.window.CSSKeyframesRule = CSSKeyframesRule;
+    sandbox.window.CSSKeyframeRule = CSSKeyframeRule;
+    sandbox.window.CSSImportRule = CSSImportRule;
+    sandbox.window.CSSFontFaceRule = CSSFontFaceRule;
+    sandbox.window.CSSStyleSheet = CSSStyleSheet;
   }
 }
 

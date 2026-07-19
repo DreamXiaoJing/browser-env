@@ -14,6 +14,26 @@ const nodeUrl = require('url');
 
 function install(sandbox, config = {}) {
   const cfg = config.fetch || {};
+  // preserveCookies: 跨请求保留 cookies 并打印请求/响应日志
+  const preserveCookies = config.preserveCookies === true;
+
+  // 格式化响应体用于日志打印（二进制内容只打印长度，JS/CSS 内容截断）
+  function formatResponseBody(body, headers, url) {
+    if (!body) return '';
+    let ct = '';
+    if (headers) {
+      if (typeof headers.get === 'function') ct = headers.get('content-type') || '';
+      else ct = headers['content-type'] || headers['Content-Type'] || '';
+    }
+    if (/image\//i.test(ct) || /octet-stream/i.test(ct)) {
+      return '<binary ' + (body.length || 0) + ' bytes>';
+    }
+    const str = typeof body === 'string' ? body : String(body);
+    if (/javascript/i.test(ct) || /text\/css/i.test(ct) || /\.js(\?|$)/i.test(url || '') || /\.css(\?|$)/i.test(url || '')) {
+      return str.length > 200 ? str.slice(0, 200) + '...(' + str.length + ' bytes)' : str;
+    }
+    return str;
+  }
 
   // ── 私有属性 WeakMap ──
   const _headersPrivate = new WeakMap();
@@ -234,6 +254,11 @@ function install(sandbox, config = {}) {
     let maxRedirects = 10;
     const credentials = options.credentials || 'same-origin';
 
+    if (preserveCookies) {
+      console.log('[FETCH] >> ' + method + ' ' + url);
+      if (body) console.log('[FETCH]    载荷:', typeof body === 'string' ? body : String(body));
+    }
+
     const reqHeaders = {};
     for (const [k, v] of Object.entries(headers)) {
       reqHeaders[k] = v;
@@ -293,6 +318,11 @@ function install(sandbox, config = {}) {
           }
         }
 
+        if (preserveCookies) {
+          console.log('[FETCH] << ' + result.status + ' ' + url);
+          console.log('[FETCH]    响应:', formatResponseBody(result.body, result.headers, url));
+        }
+
         return new Response(result.body, {
           status: result.status,
           statusText: result.statusText,
@@ -340,6 +370,10 @@ function install(sandbox, config = {}) {
 
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
               if (redirectMode !== 'follow' || redirectCount >= maxRedirects) {
+                if (preserveCookies) {
+                  console.log('[FETCH] << ' + res.statusCode + ' ' + url);
+                  console.log('[FETCH]    响应:', formatResponseBody(data, res.headers, url));
+                }
                 const resp = new Response(data, {
                   status: res.statusCode,
                   statusText: res.statusMessage,
@@ -353,6 +387,11 @@ function install(sandbox, config = {}) {
               const redirected = _httpRequest(redirectUrl, method, headers, body, redirectCount + 1, maxRedirects, redirectMode);
               result = redirected._value;
               return;
+            }
+
+            if (preserveCookies) {
+              console.log('[FETCH] << ' + res.statusCode + ' ' + url);
+              console.log('[FETCH]    响应:', formatResponseBody(data, res.headers, url));
             }
 
             const resp = new Response(data, {

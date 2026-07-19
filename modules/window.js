@@ -473,6 +473,16 @@ function install(sandbox, config = {}) {
   sandbox.removeEventListener = makeNative(function(type, listener, options) {}, 'removeEventListener');
   sandbox.dispatchEvent = makeNative(function(event) { return true; }, 'dispatchEvent');
 
+  // window.onerror / window.onunhandledrejection：浏览器全局错误处理属性
+  // 设为 no-op 函数而非 null，是为了让动态加载 JS 中的 Promise polyfill
+  // （如 core-js）在检测到 window.onunhandledrejection 存在时调用它，
+  // 而不是 fallback 到 console.error 输出 "Unhandled promise rejection"。
+  // 沙箱已在 lib/sandbox.js 中通过 process.on('unhandledRejection') 吞掉
+  // Node.js 层面的拒绝，这里补齐浏览器层面，避免 polyfill 自行打印。
+  sandbox.onerror = null;
+  sandbox.onrejectionhandled = null;
+  sandbox.onunhandledrejection = makeNative(function(event) {}, 'onunhandledrejection');
+
   sandbox.getComputedStyle = makeNative(function(element, pseudoElement) {
     return {};
   }, 'getComputedStyle');

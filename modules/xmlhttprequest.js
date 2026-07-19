@@ -76,6 +76,22 @@ function syncHttpRequest(method, url, headers, body, timeoutMs) {
 
 function install(sandbox, config = {}) {
   const cfg = config.xmlhttprequest || {};
+  // preserveCookies: 跨请求保留 cookies 并打印请求/响应日志
+  const preserveCookies = config.preserveCookies === true;
+
+  // 格式化响应体用于日志打印（二进制内容只打印长度，JS/CSS 内容截断）
+  function formatResponseBody(body, headers, url) {
+    if (!body) return '';
+    const ct = headers && (headers['content-type'] || headers['Content-Type']) || '';
+    if (/image\//i.test(ct) || /octet-stream/i.test(ct)) {
+      return '<binary ' + (body.length || 0) + ' bytes>';
+    }
+    const str = typeof body === 'string' ? body : String(body);
+    if (/javascript/i.test(ct) || /text\/css/i.test(ct) || /\.js(\?|$)/i.test(url || '') || /\.css(\?|$)/i.test(url || '')) {
+      return str.length > 200 ? str.slice(0, 200) + '...(' + str.length + ' bytes)' : str;
+    }
+    return str;
+  }
 
   // ── 常量 ──
   const UNSENT = 0;
@@ -217,6 +233,10 @@ function install(sandbox, config = {}) {
           }
           p.responseText = data;
           p.response = data;
+          if (preserveCookies) {
+            console.log('[XHR] << ' + p.status + ' ' + p.url);
+            console.log('[XHR]    响应:', formatResponseBody(data, p.responseHeaders, p.url));
+          }
           _setState(xhr, DONE);
           _dispatchEvent(xhr, 'load');
           _dispatchEvent(xhr, 'loadend');
@@ -344,6 +364,11 @@ function install(sandbox, config = {}) {
       _setState(xhr, HEADERS_RECEIVED);
       _setState(xhr, LOADING);
       _setState(xhr, DONE);
+      if (preserveCookies) {
+        const respBody = result.body || '';
+        console.log('[XHR] << ' + p.status + ' ' + p.url);
+        console.log('[XHR]    响应:', formatResponseBody(respBody, result.headers, p.url));
+      }
       _dispatchEvent(xhr, 'load');
       _dispatchEvent(xhr, 'loadend');
     }).catch(e => {
@@ -371,6 +396,7 @@ function install(sandbox, config = {}) {
       if (user) p.user = user;
       if (password) p.password = password;
       p.aborted = false;
+      if (preserveCookies) console.log('[XHR] open ' + p.method + ' ' + url);
       _setState(this, OPENED);
     }, 'open'),
 
@@ -389,6 +415,11 @@ function install(sandbox, config = {}) {
       }
       p.aborted = false;
       p.body = body;
+
+      if (preserveCookies) {
+        console.log('[XHR] >> ' + p.method + ' ' + p.url);
+        if (body) console.log('[XHR]    载荷:', typeof body === 'string' ? body : String(body));
+      }
 
       if (p.timeout > 0) {
         p.timer = global.setTimeout(() => {
@@ -432,6 +463,11 @@ function install(sandbox, config = {}) {
           p.responseHeaders = result.headers;
           p.responseText = result.data;
           p.response = result.data;
+          if (preserveCookies) {
+            const respBody = result.data || '';
+            console.log('[XHR] << ' + p.status + ' ' + p.url);
+            console.log('[XHR]    响应:', formatResponseBody(respBody, result.headers, p.url));
+          }
           _setState(this, HEADERS_RECEIVED);
           _setState(this, LOADING);
           _setState(this, DONE);

@@ -18,6 +18,118 @@ const { makeNative, defineProp, defineGetter, defineConstant } = require('../lib
 
 function install(sandbox, config = {}) {
   const cfg = config.document || {};
+  // preserveCookies: 跨请求保留 cookies 并打印请求/响应日志；
+  // 同时让 script.src / link.href / img.src 设置时真正发起 HTTP 请求
+  const preserveCookies = config.preserveCookies === true;
+
+  // 格式化响应体用于日志打印（二进制内容只打印长度，JS/CSS 内容截断）
+  function formatResponseBody(body, headers, url) {
+    if (!body) return '';
+    let ct = '';
+    if (headers) {
+      if (typeof headers.get === 'function') ct = headers.get('content-type') || '';
+      else ct = headers['content-type'] || headers['Content-Type'] || '';
+    }
+    if (/image\//i.test(ct) || /octet-stream/i.test(ct)) {
+      return '<binary ' + (body.length || 0) + ' bytes>';
+    }
+    const str = typeof body === 'string' ? body : String(body);
+    if (/javascript/i.test(ct) || /text\/css/i.test(ct) || /\.js(\?|$)/i.test(url || '') || /\.css(\?|$)/i.test(url || '')) {
+      return str.length > 200 ? str.slice(0, 200) + '...(' + str.length + ' bytes)' : str;
+    }
+    return str;
+  }
+
+  // 为 script/link/img 元素加载远程资源
+  function loadResource(el, url, tagName) {
+    if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
+    const method = 'GET';
+    if (preserveCookies) {
+      console.log('[DOM] >> ' + method + ' ' + url + ' (' + tagName + ')');
+    }
+    const done = (status, body, headers) => {
+      if (preserveCookies) {
+        console.log('[DOM] << ' + status + ' ' + url);
+        console.log('[DOM]    响应:', formatResponseBody(body, headers, url));
+      }
+      // script 元素加载的 JS 内容在沙箱中执行（浏览器行为）
+      if (tagName === 'script' && status === 200 && typeof body === 'string' && body) {
+        try {
+          if (preserveCookies) console.log('[DOM]    开始执行 script.eval, 长度=', body.length);
+          if (typeof sandbox.eval === 'function') {
+            sandbox.eval(body);
+            if (preserveCookies) console.log('[DOM]    script.eval 执行完成');
+          } else {
+            if (preserveCookies) console.log('[DOM]    sandbox.eval 不可用, typeof=', typeof sandbox.eval);
+          }
+        } catch (e) {
+          if (preserveCookies) console.log('[DOM]    执行失败:', e && e.message, '\n', e && e.stack);
+        }
+        // 脚本初始化时可能用 setTimeout(fn,0) 注册异步任务，同步刷一次
+        if (typeof sandbox.__flushTimers === 'function') {
+          try { sandbox.__flushTimers(5); } catch (e) {}
+        }
+      }
+      // 触发 onload
+      if (preserveCookies) {
+        console.log('[DOM]    onload? ', typeof el.onload, ' listeners?', el._listeners && el._listeners.load ? el._listeners.load.length : 0);
+      }
+      try {
+        if (typeof el.onload === 'function') {
+          if (preserveCookies) console.log('[DOM]    调用 el.onload');
+          el.onload({ type: 'load', target: el });
+          if (preserveCookies) console.log('[DOM]    el.onload 返回');
+        }
+        if (el._listeners && el._listeners.load) {
+          for (const cb of el._listeners.load.slice()) cb({ type: 'load', target: el });
+        }
+      } catch (e) {
+        if (preserveCookies) console.log('[DOM]    onload 异常:', e && e.message);
+      }
+      // 沙箱中 setTimeout(fn, 0) 进入 pendingZeroDelay 队列，
+      // 需要 __flushTimers() 同步执行，否则验证码库 onload 回调里的
+      // setTimeout(()=>initFeiLin(), 0) 永远不会触发
+      if (typeof sandbox.__flushTimers === 'function') {
+        try { sandbox.__flushTimers(5); } catch (e) {}
+      }
+    };
+    const fail = () => {
+      try {
+        if (typeof el.onerror === 'function') el.onerror({ type: 'error', target: el });
+        if (el._listeners && el._listeners.error) {
+          for (const cb of el._listeners.error.slice()) cb({ type: 'error', target: el });
+        }
+      } catch (e) {}
+    };
+    // 异步发起请求
+    global.setTimeout(() => {
+      try {
+        if (sandbox.__tlsRequest) {
+          sandbox.__tlsRequest(method, url, { headers: {}, body: null, followRedirects: true })
+            .then(result => done(result.status, result.body, result.headers))
+            .catch(fail);
+        } else {
+          const transport = url.startsWith('https:') ? require('https') : require('http');
+          const u = new URL(url);
+          const req = transport.request({
+            hostname: u.hostname,
+            port: u.port || (u.protocol === 'https:' ? 443 : 80),
+            path: u.pathname + u.search,
+            method: method,
+            headers: {},
+            rejectUnauthorized: false
+          }, (res) => {
+            let data = '';
+            res.setEncoding('utf8');
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => done(res.statusCode, data, res.headers));
+          });
+          req.on('error', fail);
+          req.end();
+        }
+      } catch (e) { fail(); }
+    }, 0);
+  }
 
   // ── 简化 DOM 节点 ──
   // 使用最简实现：只保证接口存在，不依赖完整 DOM 树
@@ -425,6 +537,65 @@ function install(sandbox, config = {}) {
   Object.setPrototypeOf(Comment.prototype, Node.prototype);
   Comment.prototype.nodeType = 8;
 
+  function Text(data) {
+    this.data = data !== undefined ? String(data) : '';
+    this.textContent = this.data;
+    this.wholeText = this.data;
+  }
+  makeNative(Text, 'Text');
+  Object.setPrototypeOf(Text.prototype, Node.prototype);
+  Text.prototype.nodeType = 3;
+  Text.prototype.nodeName = '#text';
+
+  function DocumentFragment() {
+    this.childNodes = [];
+    this.children = [];
+    this.parentNode = null;
+    this.parentElement = null;
+    this.ownerDocument = null;
+    this.isConnected = false;
+  }
+  makeNative(DocumentFragment, 'DocumentFragment');
+  Object.setPrototypeOf(DocumentFragment.prototype, Node.prototype);
+  DocumentFragment.prototype.nodeType = 11;
+  DocumentFragment.prototype.nodeName = '#document-fragment';
+  DocumentFragment.prototype.appendChild = makeNative(function(child) {
+    if (child && child.parentNode) child.parentNode.removeChild(child);
+    child.parentNode = this;
+    child.parentElement = this;
+    this.childNodes.push(child);
+    if (child.nodeType === 1) this.children.push(child);
+    return child;
+  }, 'appendChild');
+  DocumentFragment.prototype.removeChild = makeNative(function(child) {
+    var idx = this.childNodes.indexOf(child);
+    if (idx >= 0) this.childNodes.splice(idx, 1);
+    var idx2 = this.children.indexOf(child);
+    if (idx2 >= 0) this.children.splice(idx2, 1);
+    return child;
+  }, 'removeChild');
+  DocumentFragment.prototype.insertBefore = makeNative(function(newNode, refNode) {
+    if (newNode && newNode.parentNode) newNode.parentNode.removeChild(newNode);
+    newNode.parentNode = this;
+    newNode.parentElement = this;
+    if (refNode == null) {
+      this.childNodes.push(newNode);
+      if (newNode.nodeType === 1) this.children.push(newNode);
+    } else {
+      var idx = this.childNodes.indexOf(refNode);
+      if (idx >= 0) {
+        this.childNodes.splice(idx, 0, newNode);
+        var cidx = this.children.indexOf(refNode);
+        if (cidx >= 0) this.children.splice(cidx, 0, newNode);
+        else if (newNode.nodeType === 1) this.children.push(newNode);
+      } else {
+        this.childNodes.push(newNode);
+        if (newNode.nodeType === 1) this.children.push(newNode);
+      }
+    }
+    return newNode;
+  }, 'insertBefore');
+
   const tagMap = {
     div: HTMLDivElement,
     a: HTMLAnchorElement,
@@ -731,6 +902,27 @@ function install(sandbox, config = {}) {
     return true;
   }
 
+  function createStyle() {
+    const style = {};
+    style.setProperty = makeNative(function setProperty(prop, value, priority) {
+      var camel = prop.replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); });
+      style[camel] = value;
+      if (camel !== prop) style[prop] = value;
+    }, 'setProperty');
+    style.getPropertyValue = makeNative(function getPropertyValue(prop) {
+      var camel = prop.replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); });
+      return style[camel] !== undefined ? String(style[camel]) : '';
+    }, 'getPropertyValue');
+    style.removeProperty = makeNative(function removeProperty(prop) {
+      var camel = prop.replace(/-([a-z])/g, function(m, c) { return c.toUpperCase(); });
+      var old = style[camel] || '';
+      delete style[camel];
+      if (camel !== prop) delete style[prop];
+      return old;
+    }, 'removeProperty');
+    return style;
+  }
+
   function makeEl(tagName) {
     const Ctor = tagMap[tagName.toLowerCase()] || HTMLElement;
     const el = {};
@@ -742,7 +934,7 @@ function install(sandbox, config = {}) {
     el.id = '';
     el.className = '';
     el.classList = createDOMTokenList(el, 'className');
-    el.style = {};
+    el.style = createStyle();
     el.attributes = {};
     el.children = [];
     el.childNodes = [];
@@ -837,10 +1029,79 @@ function install(sandbox, config = {}) {
       configurable: true,
       enumerable: true
     });
+    // outerHTML / innerHTML：序列化元素及子节点为 HTML 字符串
+    // 沙箱无完整 DOM 树，这里给出基于 tagName、属性与子节点的简化序列化，
+    // 供反爬脚本读取 document.documentElement.outerHTML 等场景使用
+    function serializeNode(node) {
+      if (!node) return '';
+      if (node.nodeType === 3) return String(node.data || '');
+      if (node.nodeType !== 1) return '';
+      var tag = (node.tagName || '').toLowerCase();
+      if (!tag) return '';
+      var attrs = '';
+      if (node.attributes) {
+        var names = typeof node.getAttributeNames === 'function'
+          ? node.getAttributeNames()
+          : Object.keys(node.attributes);
+        for (var i = 0; i < names.length; i++) {
+          var v = node.getAttribute ? node.getAttribute(names[i]) : node.attributes[names[i]];
+          if (v == null) v = '';
+          attrs += ' ' + names[i] + '="' + String(v).replace(/"/g, '&quot;') + '"';
+        }
+      }
+      var voidTags = ['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'];
+      var open = '<' + tag + attrs + '>';
+      if (voidTags.indexOf(tag) !== -1) return open;
+      var inner = '';
+      var children = node.childNodes || node.children || [];
+      for (var j = 0; j < children.length; j++) {
+        inner += serializeNode(children[j]);
+      }
+      return open + inner + '</' + tag + '>';
+    }
+    Object.defineProperty(el, 'outerHTML', {
+      get: makeNative(function() { return serializeNode(this); }, 'get outerHTML'),
+      set: makeNative(function() {}, 'set outerHTML'),
+      configurable: true,
+      enumerable: true
+    });
+    Object.defineProperty(el, 'innerHTML', {
+      get: makeNative(function() {
+        var inner = '';
+        var children = this.childNodes || this.children || [];
+        for (var i = 0; i < children.length; i++) {
+          inner += serializeNode(children[i]);
+        }
+        return inner;
+      }, 'get innerHTML'),
+      set: makeNative(function() {}, 'set innerHTML'),
+      configurable: true,
+      enumerable: true
+    });
     el.ownerDocument = null;
     el.isConnected = false;
     el.namespaceURI = tagName.toLowerCase() === 'html' ? 'http://www.w3.org/1999/xhtml' : null;
     el.prefix = null;
+
+    // script/link/img 元素的 src/href setter：preserveCookies 时发起真实 HTTP 请求
+    const lowerTag = tagName.toLowerCase();
+    if (lowerTag === 'script' || lowerTag === 'img' || lowerTag === 'link') {
+      const prop = lowerTag === 'link' ? 'href' : 'src';
+      let _val = '';
+      try {
+        Object.defineProperty(el, prop, {
+          get: makeNative(function() { return _val; }, 'get ' + prop),
+          set: makeNative(function(v) {
+            _val = v;
+            if (preserveCookies && typeof v === 'string' && /^https?:\/\//i.test(v)) {
+              loadResource(el, v, lowerTag);
+            }
+          }, 'set ' + prop),
+          configurable: true,
+          enumerable: true
+        });
+      } catch (e) {}
+    }
     el.offsetWidth = 0;
     el.offsetHeight = 0;
     el.offsetLeft = 0;
@@ -889,6 +1150,13 @@ function install(sandbox, config = {}) {
       return !event.defaultPrevented;
     }, 'dispatchEvent');
     el.appendChild = makeNative(function(child) {
+      if (child && child.nodeType === 11) {
+        var nodes = child.childNodes.slice();
+        for (var i = 0; i < nodes.length; i++) this.appendChild(nodes[i]);
+        child.childNodes = [];
+        child.children = [];
+        return child;
+      }
       if (child && child.parentNode) child.parentNode.removeChild(child);
       child.parentNode = el;
       child.parentElement = el;
@@ -906,8 +1174,33 @@ function install(sandbox, config = {}) {
       return child;
     }, 'removeChild');
     el.insertBefore = makeNative(function(newNode, refNode) {
+      if (newNode && newNode.nodeType === 11) {
+        var nodes = newNode.childNodes.slice();
+        for (var i = 0; i < nodes.length; i++) this.insertBefore(nodes[i], refNode);
+        newNode.childNodes = [];
+        newNode.children = [];
+        return newNode;
+      }
+      if (newNode && newNode.parentNode) newNode.parentNode.removeChild(newNode);
       newNode.parentNode = el;
       newNode.parentElement = el;
+      newNode.ownerDocument = el.ownerDocument;
+      newNode.isConnected = el.isConnected || el.ownerDocument != null;
+      if (refNode == null) {
+        el.childNodes.push(newNode);
+        el.children.push(newNode);
+      } else {
+        const idx = el.childNodes.indexOf(refNode);
+        if (idx >= 0) {
+          el.childNodes.splice(idx, 0, newNode);
+          const cidx = el.children.indexOf(refNode);
+          if (cidx >= 0) el.children.splice(cidx, 0, newNode);
+          else el.children.push(newNode);
+        } else {
+          el.childNodes.push(newNode);
+          el.children.push(newNode);
+        }
+      }
       return newNode;
     }, 'insertBefore');
     el.replaceChild = makeNative(function(newChild, oldChild) {
@@ -992,6 +1285,65 @@ function install(sandbox, config = {}) {
     el.prepend = makeNative(function() {}, 'prepend');
     el.replaceWith = makeNative(function() {}, 'replaceWith');
     el.replaceChildren = makeNative(function() {}, 'replaceChildren');
+    // insertAdjacentHTML(position, text)：将 HTML 字符串解析后插入到指定位置
+    // 沙箱无完整 HTML 解析器，这里用简化实现：仅创建文本节点或元素节点
+    el.insertAdjacentHTML = makeNative(function(position, text) {
+      var pos = String(position || '').toLowerCase();
+      var html = String(text == null ? '' : text);
+      // 简化 HTML 解析：用正则提取标签序列，构建节点插入
+      function parseHTML(htmlStr) {
+        var frag = document.createDocumentFragment();
+        var re = /<([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*)>([^<]*)<\/\1>|<([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*)\/?>([^<]*)|([^<]+)/g;
+        var m;
+        while ((m = re.exec(htmlStr)) !== null) {
+          if (m[1]) {
+            var el2 = document.createElement(m[1]);
+            var attrRe = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*"([^"]*)"|([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*'([^']*)'|([a-zA-Z_:][-a-zA-Z0-9_:.]*)/g;
+            var am;
+            while ((am = attrRe.exec(m[2])) !== null) {
+              if (am[1]) el2.setAttribute(am[1], am[2]);
+              else if (am[3]) el2.setAttribute(am[3], am[4]);
+              else if (am[5]) el2.setAttribute(am[5], '');
+            }
+            if (m[3]) el2.textContent = m[3];
+            frag.appendChild(el2);
+          } else if (m[4]) {
+            var el3 = document.createElement(m[4]);
+            var attrRe2 = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*"([^"]*)"|([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*'([^']*)'|([a-zA-Z_:][-a-zA-Z0-9_:.]*)/g;
+            var am2;
+            while ((am2 = attrRe2.exec(m[5])) !== null) {
+              if (am2[1]) el3.setAttribute(am2[1], am2[2]);
+              else if (am2[3]) el3.setAttribute(am2[3], am2[4]);
+              else if (am2[5]) el3.setAttribute(am2[5], '');
+            }
+            if (m[6]) el3.textContent = m[6];
+            frag.appendChild(el3);
+          } else if (m[7]) {
+            frag.appendChild(document.createTextNode(m[7]));
+          }
+        }
+        return frag;
+      }
+      var frag = parseHTML(html);
+      switch (pos) {
+        case 'beforebegin':
+          if (this.parentNode) this.parentNode.insertBefore(frag, this);
+          break;
+        case 'afterbegin':
+          this.insertBefore(frag, this.firstChild);
+          break;
+        case 'beforeend':
+          this.appendChild(frag);
+          break;
+        case 'afterend':
+          if (this.parentNode) {
+            var next = this.nextSibling;
+            if (next) this.parentNode.insertBefore(frag, next);
+            else this.parentNode.appendChild(frag);
+          }
+          break;
+      }
+    }, 'insertAdjacentHTML');
     el.toggleAttribute = makeNative(function(name, force) {
       var has = el.hasAttribute(name);
       if (force === undefined) {
@@ -1239,15 +1591,17 @@ function install(sandbox, config = {}) {
     }, 'createElementNS'),
 
     createTextNode: makeNative(function createTextNode(data) {
-      return { nodeType: 3, nodeName: '#text', data: data, textContent: data, wholeText: data };
+      return new Text(data);
     }, 'createTextNode'),
 
     createComment: makeNative(function createComment(data) {
-      return { nodeType: 8, nodeName: '#comment', data: data };
+      var c = new Comment();
+      c.data = data !== undefined ? String(data) : '';
+      return c;
     }, 'createComment'),
 
     createDocumentFragment: makeNative(function createDocumentFragment() {
-      return { nodeType: 11, nodeName: '#document-fragment', childNodes: [], appendChild: function(c) { this.childNodes.push(c); return c; } };
+      return new DocumentFragment();
     }, 'createDocumentFragment'),
 
     createAttribute: makeNative(function createAttribute(name) {
@@ -1255,7 +1609,13 @@ function install(sandbox, config = {}) {
     }, 'createAttribute'),
 
     createEvent: makeNative(function createEvent(type) {
-      return { type: type, bubbles: false, cancelable: false };
+      var event = { type: type, bubbles: false, cancelable: false, defaultPrevented: false, target: null, currentTarget: null };
+      event.initEvent = makeNative(function initEvent(t, b, c) { this.type = t; this.bubbles = b; this.cancelable = c; }, 'initEvent');
+      event.initCustomEvent = makeNative(function initCustomEvent(t, b, c, detail) { this.type = t; this.bubbles = b; this.cancelable = c; this.detail = detail; }, 'initCustomEvent');
+      event.preventDefault = makeNative(function preventDefault() { if (this.cancelable) this.defaultPrevented = true; }, 'preventDefault');
+      event.stopPropagation = makeNative(function stopPropagation() {}, 'stopPropagation');
+      event.stopImmediatePropagation = makeNative(function stopImmediatePropagation() {}, 'stopImmediatePropagation');
+      return event;
     }, 'createEvent'),
 
     getElementById: makeNative(function getElementById(id) {
@@ -1500,6 +1860,10 @@ function install(sandbox, config = {}) {
   makeNative(sandbox.HTMLDocument, 'HTMLDocument');
   sandbox.XMLDocument = function XMLDocument() {};
   makeNative(sandbox.XMLDocument, 'XMLDocument');
+  sandbox.Attr = function Attr() {};
+  makeNative(sandbox.Attr, 'Attr');
+  sandbox.NamedNodeMap = function NamedNodeMap() {};
+  makeNative(sandbox.NamedNodeMap, 'NamedNodeMap');
 
   sandbox.Node = Node;
   sandbox.Element = Element;
@@ -1521,6 +1885,16 @@ function install(sandbox, config = {}) {
   sandbox.HTMLTextAreaElement = HTMLTextAreaElement;
   sandbox.HTMLSelectElement = HTMLSelectElement;
   sandbox.HTMLOptionElement = HTMLOptionElement;
+  // Option 构造函数：new Option(text, value, defaultSelected, selected)
+  // 反爬脚本（如 FeiLin）可能直接引用 Option 全局
+  sandbox.Option = makeNative(function Option(text, value, defaultSelected, selected) {
+    var opt = document.createElement('option');
+    if (text !== undefined) opt.textContent = String(text);
+    if (value !== undefined) opt.value = String(value);
+    opt.defaultSelected = !!defaultSelected;
+    opt.selected = selected !== undefined ? !!selected : !!defaultSelected;
+    return opt;
+  }, 'Option');
   sandbox.HTMLButtonElement = HTMLButtonElement;
   sandbox.HTMLTableElement = HTMLTableElement;
   sandbox.HTMLTableRowElement = HTMLTableRowElement;
@@ -1589,6 +1963,8 @@ function install(sandbox, config = {}) {
   sandbox.HTMLSlotable = HTMLSlotable;
   sandbox.Image = Image;
   sandbox.Comment = Comment;
+  sandbox.Text = Text;
+  sandbox.DocumentFragment = DocumentFragment;
   sandbox.DOMTokenList = DOMTokenList;
   sandbox.NodeList = NodeList;
   sandbox.HTMLCollection = HTMLCollection;
@@ -1616,7 +1992,8 @@ function install(sandbox, config = {}) {
     HTMLElementElement, HTMLArticleElement, HTMLAsideElement, HTMLFooterElement,
     HTMLHeaderElement, HTMLHGroupElement, HTMLMainElement, HTMLNavElement,
     HTMLSectionElement, HTMLSummaryElement, HTMLMenuElement, HTMLMenuItemElement,
-    HTMLDirectoryElement, HTMLSearchElement, HTMLSlotable, Comment, HTMLAllCollection
+    HTMLDirectoryElement, HTMLSearchElement, HTMLSlotable, Comment, Text,
+    DocumentFragment, HTMLAllCollection
   ];
   allCtors.forEach(function(ctor) {
     Object.defineProperty(ctor.prototype, 'constructor', {

@@ -20,19 +20,28 @@ const { makeNative, defineProp } = require('../lib/guard');
 function install(sandbox, config = {}) {
   // ── 0 延迟定时器队列（用于 RS 的 setTimeout(fn, 0) 异步链）──
   var pendingZeroDelay = [];
+  // 浏览器里 setTimeout/setInterval 返回数字 ID，Node.js 返回 Timeout 对象（含循环引用）
+  // 这里维护一个数字 ID → 原生句柄 的映射，让沙箱里拿到的始终是数字
   var timerIdCounter = 1;
+  var nativeTimerMap = new Map();
+
+  function registerNativeTimer(nativeHandle) {
+    var id = timerIdCounter++;
+    nativeTimerMap.set(id, nativeHandle);
+    return id;
+  }
 
   // ── setTimeout ──
   sandbox.setTimeout = makeNative(function setTimeout(callback, delay, ...args) {
     // RS VMP 使用 setTimeout(fn, 0) 异步链, 需入队列供 flushTimers 同步执行
     // 浏览器最小延迟 4ms, 但 RS 的 0 延迟必须进 pending 队列
-    
+
     // 调试：如果callback不是函数也不是字符串，打印调用栈
     if (sandbox.__debugTimers__ && typeof callback !== 'function' && typeof callback !== 'string') {
       console.error('[SETTIMEOUT ERROR] callback is not a function or string:', typeof callback, callback);
       console.error('[SETTIMEOUT ERROR] stack:', new Error().stack);
     }
-    
+
     if (delay === 0 || delay === undefined || delay === null) {
       var id = timerIdCounter++;
       pendingZeroDelay.push({ id: id, fn: typeof callback === 'string' ? function() { sandbox.eval(callback); } : callback, args: args });
@@ -41,14 +50,14 @@ function install(sandbox, config = {}) {
     // 非零延迟使用 Node.js setTimeout（带 4ms 最小限制）
     var minDelay = 4;
     var effectiveDelay = Math.max(minDelay, Number(delay));
-    var id = global.setTimeout(function() {
+    var nativeHandle = global.setTimeout(function() {
       if (typeof callback === 'string') {
         sandbox.eval(callback);
       } else if (typeof callback === 'function') {
         callback.apply(undefined, args);
       }
     }, effectiveDelay);
-    return id;
+    return registerNativeTimer(nativeHandle);
   }, 'setTimeout');
 
   sandbox.clearTimeout = makeNative(function clearTimeout(id) {
@@ -59,68 +68,88 @@ function install(sandbox, config = {}) {
         return;
       }
     }
-    global.clearTimeout(id);
+    var handle = nativeTimerMap.get(id);
+    if (handle !== undefined) {
+      nativeTimerMap.delete(id);
+      global.clearTimeout(handle);
+    }
   }, 'clearTimeout');
 
   // ── setInterval ──
   sandbox.setInterval = makeNative(function setInterval(callback, interval, ...args) {
     var effectiveInterval = Math.max(4, interval || 4);
-    var id = global.setInterval(function() {
+    var nativeHandle = global.setInterval(function() {
       if (typeof callback === 'string') {
         sandbox.eval(callback);
       } else if (typeof callback === 'function') {
         callback.apply(undefined, args);
       }
     }, effectiveInterval);
-    return id;
+    return registerNativeTimer(nativeHandle);
   }, 'setInterval');
 
   sandbox.clearInterval = makeNative(function clearInterval(id) {
-    global.clearInterval(id);
+    var handle = nativeTimerMap.get(id);
+    if (handle !== undefined) {
+      nativeTimerMap.delete(id);
+      global.clearInterval(handle);
+    }
   }, 'clearInterval');
 
   // ── setImmediate / clearImmediate ──
   if (typeof global.setImmediate !== 'undefined') {
     sandbox.setImmediate = makeNative(function setImmediate(callback, ...args) {
-      var id = global.setImmediate(function() {
+      var nativeHandle = global.setImmediate(function() {
         if (typeof callback === 'function') callback.apply(undefined, args);
       });
-      return id;
+      return registerNativeTimer(nativeHandle);
     }, 'setImmediate');
 
     sandbox.clearImmediate = makeNative(function clearImmediate(id) {
-      global.clearImmediate(id);
+      var handle = nativeTimerMap.get(id);
+      if (handle !== undefined) {
+        nativeTimerMap.delete(id);
+        global.clearImmediate(handle);
+      }
     }, 'clearImmediate');
   }
 
   // ── requestAnimationFrame ──
   sandbox.requestAnimationFrame = makeNative(function requestAnimationFrame(callback) {
-    var id = global.setTimeout(function() {
+    var nativeHandle = global.setTimeout(function() {
       var sandboxPerf = sandbox.performance;
       var time = sandboxPerf ? sandboxPerf.now() : Date.now();
       callback(time);
     }, 16);
-    return id;
+    return registerNativeTimer(nativeHandle);
   }, 'requestAnimationFrame');
 
   sandbox.cancelAnimationFrame = makeNative(function cancelAnimationFrame(id) {
-    global.clearTimeout(id);
+    var handle = nativeTimerMap.get(id);
+    if (handle !== undefined) {
+      nativeTimerMap.delete(id);
+      global.clearTimeout(handle);
+    }
   }, 'cancelAnimationFrame');
 
   // ── requestIdleCallback ──
   sandbox.requestIdleCallback = makeNative(function requestIdleCallback(callback, options) {
     var timeout = (options && options.timeout) || 50;
-    var id = global.setTimeout(function() {
+    var nativeHandle = global.setTimeout(function() {
       callback({
         didTimeout: false,
         timeRemaining: makeNative(function() { return 50; }, 'timeRemaining')
       });
     }, 1);
-    return id;
+    return registerNativeTimer(nativeHandle);
   }, 'requestIdleCallback');
 
   sandbox.cancelIdleCallback = makeNative(function cancelIdleCallback(id) {
-    global.clearTimeout(id);
+    var handle = nativeTimerMap.get(id);
+    if (handle !== undefined) {
+      nativeTimerMap.delete(id);
+      global.clearTimeout(handle);
+    }
   }, 'cancelIdleCallback');
 
   // ── queueMicrotask ──
