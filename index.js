@@ -177,7 +177,27 @@ class BrowserEnv {
     let sourceFilename = filename || 'eval';
     
     if (typeof code === 'string') {
-      const resolvedPath = path.resolve(code);
+      let resolvedPath = path.resolve(code);
+      
+      if (!fs.existsSync(resolvedPath) && code.startsWith('./') || code.startsWith('../')) {
+        const callers = (new Error()).stack.split('\n');
+        let callerPath = '';
+        for (const line of callers) {
+          if (line.includes('at Object.') && !line.includes('runInContext')) {
+            const match = line.match(/\(([^)]+)\)/);
+            if (match) {
+              callerPath = match[1];
+              break;
+            }
+          }
+        }
+        
+        if (callerPath) {
+          const callerDir = path.dirname(callerPath);
+          resolvedPath = path.resolve(callerDir, code);
+        }
+      }
+      
       if (fs.existsSync(resolvedPath)) {
         sourceCode = fs.readFileSync(resolvedPath, 'utf8');
         sourceFilename = resolvedPath;

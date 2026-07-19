@@ -127,6 +127,20 @@ function install(sandbox, config = {}) {
   // 修正原型链
   Object.setPrototypeOf(crypto, sandbox.Crypto.prototype);
   Object.setPrototypeOf(subtle, SubtleCrypto.prototype);
+
+  Object.defineProperty(crypto, Symbol.toStringTag, {
+    value: 'Crypto',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  Object.defineProperty(subtle, Symbol.toStringTag, {
+    value: 'SubtleCrypto',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 }
 
 module.exports = { install };

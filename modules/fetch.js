@@ -232,13 +232,27 @@ function install(sandbox, config = {}) {
     const body = options.body || null;
     let redirect = options.redirect || 'follow';
     let maxRedirects = 10;
+    const credentials = options.credentials || 'same-origin';
 
-    // 优先使用 TLS session（如果已初始化）
-    if (sandbox.__tlsRequest) {
-      return _tlsFetch(url, method, headers, body, redirect);
+    const reqHeaders = {};
+    for (const [k, v] of Object.entries(headers)) {
+      reqHeaders[k] = v;
     }
 
-    return _httpRequest(url, method, headers, body, 0, maxRedirects, redirect);
+    if (credentials !== 'omit' && sandbox.document && sandbox.document.cookie) {
+      const docCookie = String(sandbox.document.cookie);
+      if (docCookie && docCookie.trim()) {
+        if (!reqHeaders['cookie'] && !reqHeaders['Cookie']) {
+          reqHeaders['cookie'] = docCookie;
+        }
+      }
+    }
+
+    if (sandbox.__tlsRequest) {
+      return _tlsFetch(url, method, reqHeaders, body, redirect);
+    }
+
+    return _httpRequest(url, method, reqHeaders, body, 0, maxRedirects, redirect);
   }
 
   // ── TLS fetch（使用 node-tls-client）──
@@ -259,6 +273,26 @@ function install(sandbox, config = {}) {
             }
           }
         }
+
+        if (sandbox.document && sandbox.document.cookie !== undefined) {
+          const setCookieHeaders = [];
+          const lowerHeaders = {};
+          for (const [k, v] of Object.entries(result.headers || {})) {
+            lowerHeaders[k.toLowerCase()] = v;
+          }
+          if (lowerHeaders['set-cookie']) {
+            const cookies = Array.isArray(lowerHeaders['set-cookie']) ? lowerHeaders['set-cookie'] : [lowerHeaders['set-cookie']];
+            for (const cookie of cookies) {
+              const cookieStr = String(cookie);
+              const idx = cookieStr.indexOf(';');
+              const nameValue = idx !== -1 ? cookieStr.substring(0, idx).trim() : cookieStr.trim();
+              if (nameValue) {
+                sandbox.document.cookie = nameValue;
+              }
+            }
+          }
+        }
+
         return new Response(result.body, {
           status: result.status,
           statusText: result.statusText,

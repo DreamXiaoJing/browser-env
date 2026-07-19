@@ -2,30 +2,16 @@
 
 const { makeNative, defineProp } = require('../lib/guard');
 
-/**
- * performance 模块
- *
- * 实现:
- * - performance.now() — 高精度时间
- * - performance.timing — 导航时间
- * - performance.navigation — 导航类型
- * - performance.memory — (Chrome 特有) 内存使用
- * - performance.getEntries / getEntriesByType / getEntriesByName
- * - performance.mark / measure / clearMarks / clearMeasures
- */
-
 function install(sandbox, config = {}) {
   const cfg = config.performance || {};
 
-  // 时间起点
   const timeOrigin = cfg.timeOrigin || Date.now();
   const startTime = process.hrtime.bigint();
 
-  // 存储标记和度量
   const marks = new Map();
   const measures = new Map();
+  const entries = [];
 
-  // ── PerformanceEntry ──
   function PerformanceEntry() {}
   makeNative(PerformanceEntry, 'PerformanceEntry');
 
@@ -35,46 +21,64 @@ function install(sandbox, config = {}) {
     entry.entryType = entryType;
     entry.startTime = startTime;
     entry.duration = duration;
-    Object.setPrototypeOf(entry, PerformanceEntry.prototype);
     entry.toJSON = makeNative(function() {
       return { name, entryType, startTime, duration };
     }, 'toJSON');
+    Object.setPrototypeOf(entry, PerformanceEntry.prototype);
     return entry;
   }
 
-  // ── PerformanceMark ──
   function PerformanceMark() {}
   makeNative(PerformanceMark, 'PerformanceMark');
   Object.setPrototypeOf(PerformanceMark.prototype, PerformanceEntry.prototype);
 
-  // ── PerformanceMeasure ──
   function PerformanceMeasure() {}
   makeNative(PerformanceMeasure, 'PerformanceMeasure');
   Object.setPrototypeOf(PerformanceMeasure.prototype, PerformanceEntry.prototype);
 
-  // ── PerformanceNavigationTiming ──
   function PerformanceNavigationTiming() {}
   makeNative(PerformanceNavigationTiming, 'PerformanceNavigationTiming');
   Object.setPrototypeOf(PerformanceNavigationTiming.prototype, PerformanceEntry.prototype);
 
-  // ── PerformanceResourceTiming ──
   function PerformanceResourceTiming() {}
   makeNative(PerformanceResourceTiming, 'PerformanceResourceTiming');
   Object.setPrototypeOf(PerformanceResourceTiming.prototype, PerformanceEntry.prototype);
 
-  // ── 构造 performance 对象 ──
+  function PerformancePaintTiming() {}
+  makeNative(PerformancePaintTiming, 'PerformancePaintTiming');
+  Object.setPrototypeOf(PerformancePaintTiming.prototype, PerformanceEntry.prototype);
+
+  function PerformanceObserver(callback) {
+    this._callback = callback;
+    this._observerType = null;
+    this._enabled = false;
+  }
+  makeNative(PerformanceObserver, 'PerformanceObserver');
+
+  PerformanceObserver.prototype.observe = makeNative(function(options) {
+    this._observerType = options.type;
+    this._enabled = true;
+  }, 'observe');
+
+  PerformanceObserver.prototype.disconnect = makeNative(function() {
+    this._enabled = false;
+    this._observerType = null;
+  }, 'disconnect');
+
+  PerformanceObserver.prototype.takeRecords = makeNative(function() {
+    return [];
+  }, 'takeRecords');
+
+  PerformanceObserver.supportedEntryTypes = ['mark', 'measure', 'navigation', 'resource', 'paint'];
+
   const performance = {
-    // 时间原点（从1970-01-01开始的毫秒数）
     timeOrigin: timeOrigin,
 
-    // now() — 返回从 timeOrigin 到当前的高精度毫秒
     now: makeNative(function now() {
       const elapsed = Number(process.hrtime.bigint() - startTime) / 1e6;
       return elapsed;
     }, 'now'),
 
-    // ── timing（导航时间）──
-    // 模拟一个页面加载时间线
     timing: {
       navigationStart: cfg.navigationStart || timeOrigin,
       unloadEventStart: 0,
@@ -100,28 +104,26 @@ function install(sandbox, config = {}) {
       toJSON: makeNative(function() { return this; }, 'toJSON')
     },
 
-    // ── navigation ──
     navigation: {
-      type: cfg.navigationType || 0,  // 0=NAVIGATE, 1=RELOAD, 2=BACK_FORWARD, 255=RESERVED
+      type: cfg.navigationType || 0,
       redirectCount: 0,
       toJSON: makeNative(function() { return this; }, 'toJSON')
     },
 
-    // ── memory（Chrome 特有）──
     memory: {
       jsHeapSizeLimit: cfg.jsHeapSizeLimit || 4294705152,
       totalJSHeapSize: cfg.totalJSHeapSize || 10000000,
       usedJSHeapSize: cfg.usedJSHeapSize || 8000000
     },
 
-    // ── Mark / Measure ──
-    mark: makeNative(function mark(name) {
+    mark: makeNative(function mark(name, options) {
       if (typeof name !== 'string') {
         throw new TypeError("Failed to execute 'mark' on 'Performance': parameter 1 is not of type 'string'.");
       }
       const entry = makeEntry(name, 'mark', this.now(), 0);
       Object.setPrototypeOf(entry, PerformanceMark.prototype);
       marks.set(name, entry);
+      entries.push(entry);
       return entry;
     }, 'mark'),
 
@@ -133,7 +135,7 @@ function install(sandbox, config = {}) {
       }
     }, 'clearMarks'),
 
-    measure: makeNative(function measure(name, startMark, endMark) {
+    measure: makeNative(function measure(name, startMark, endMark, options) {
       let startTime = 0;
       let endTime = this.now();
 
@@ -147,6 +149,7 @@ function install(sandbox, config = {}) {
       const entry = makeEntry(name, 'measure', startTime, endTime - startTime);
       Object.setPrototypeOf(entry, PerformanceMeasure.prototype);
       measures.set(name, entry);
+      entries.push(entry);
       return entry;
     }, 'measure'),
 
@@ -158,18 +161,26 @@ function install(sandbox, config = {}) {
       }
     }, 'clearMeasures'),
 
-    // ── getEntries ──
     getEntries: makeNative(function getEntries() {
-      const entries = [];
-      // navigation timing
+      const result = [];
       const navEntry = makeEntry('document', 'navigation', 0, this.timing.loadEventEnd - this.timing.navigationStart);
       Object.setPrototypeOf(navEntry, PerformanceNavigationTiming.prototype);
-      entries.push(navEntry);
-      // marks
-      for (const entry of marks.values()) entries.push(entry);
-      // measures
-      for (const entry of measures.values()) entries.push(entry);
-      return entries;
+      result.push(navEntry);
+
+      const paintEntry = makeEntry('first-paint', 'paint', this.timing.responseEnd, 0);
+      Object.setPrototypeOf(paintEntry, PerformancePaintTiming.prototype);
+      result.push(paintEntry);
+
+      const fcpEntry = makeEntry('first-contentful-paint', 'paint', this.timing.responseEnd + 100, 0);
+      Object.setPrototypeOf(fcpEntry, PerformancePaintTiming.prototype);
+      result.push(fcpEntry);
+
+      for (const entry of marks.values()) result.push(entry);
+      for (const entry of measures.values()) result.push(entry);
+      for (const entry of entries) {
+        if (entry.entryType === 'resource') result.push(entry);
+      }
+      return result;
     }, 'getEntries'),
 
     getEntriesByType: makeNative(function getEntriesByType(type) {
@@ -180,17 +191,19 @@ function install(sandbox, config = {}) {
       return this.getEntries().filter(e => e.name === name && (!type || e.entryType === type));
     }, 'getEntriesByName'),
 
-    // 时间源
     toJSON: makeNative(function toJSON() {
       return {
         timeOrigin: this.timeOrigin,
         timing: this.timing,
         navigation: this.navigation
       };
-    }, 'toJSON')
+    }, 'toJSON'),
+
+    addEventListener: makeNative(function(type, cb, opts) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb, opts) {}, 'removeEventListener'),
+    dispatchEvent: makeNative(function(event) { return true; }, 'dispatchEvent')
   };
 
-  // ── 安装到 sandbox ──
   sandbox.Performance = function Performance() {};
   makeNative(sandbox.Performance, 'Performance');
   sandbox.performance = performance;
@@ -199,8 +212,17 @@ function install(sandbox, config = {}) {
   sandbox.PerformanceMeasure = PerformanceMeasure;
   sandbox.PerformanceNavigationTiming = PerformanceNavigationTiming;
   sandbox.PerformanceResourceTiming = PerformanceResourceTiming;
+  sandbox.PerformancePaintTiming = PerformancePaintTiming;
+  sandbox.PerformanceObserver = PerformanceObserver;
 
   Object.setPrototypeOf(performance, sandbox.Performance.prototype);
+
+  Object.defineProperty(performance, Symbol.toStringTag, {
+    value: 'Performance',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 }
 
 module.exports = { install };

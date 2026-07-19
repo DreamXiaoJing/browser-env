@@ -36,12 +36,10 @@ function install(sandbox, config = {}) {
     p.onclose = null;
     p.onerror = null;
 
-    if (config.realWebSocket !== true) {
-      global.setTimeout(() => {
-        p.readyState = CLOSED;
-        _dispatch(this, 'close', { code: 1006, reason: 'Connection refused', wasClean: false });
-      }, 0);
-    }
+    global.setTimeout(() => {
+      p.readyState = OPEN;
+      _dispatch(this, 'open');
+    }, 100);
   }
 
   makeNative(WebSocket, 'WebSocket');

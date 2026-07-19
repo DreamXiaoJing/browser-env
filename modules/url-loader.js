@@ -82,6 +82,22 @@ function parseHtmlToDom(ctx, html) {
   htmlEl.appendChild(headEl);
   htmlEl.appendChild(bodyEl);
   
+  // 更新 document.head 和 document.body 引用
+  if (Object.getOwnPropertyDescriptor(doc, 'head') && Object.getOwnPropertyDescriptor(doc, 'head').writable) {
+    doc.head = headEl;
+  } else {
+    try {
+      Object.defineProperty(doc, 'head', { value: headEl, configurable: true, writable: true });
+    } catch(e) {}
+  }
+  if (Object.getOwnPropertyDescriptor(doc, 'body') && Object.getOwnPropertyDescriptor(doc, 'body').writable) {
+    doc.body = bodyEl;
+  } else {
+    try {
+      Object.defineProperty(doc, 'body', { value: bodyEl, configurable: true, writable: true });
+    } catch(e) {}
+  }
+  
   const titleEl = doc.querySelector('title');
   if (titleEl && titleEl.textContent) {
     doc.title = titleEl.textContent;

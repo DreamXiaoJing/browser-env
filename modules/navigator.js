@@ -279,6 +279,34 @@ function install(sandbox, config = {}) {
   }
 
   // ── 其他子对象 ├─
+  // mediaCapabilities（Chrome 66+）
+  navigator.mediaCapabilities = {
+    query: makeNative(function query(queryConfig) {
+      return Promise.resolve({
+        supported: true,
+        smooth: true,
+        powerEfficient: true,
+        configuration: queryConfig || {}
+      });
+    }, 'query'),
+    encodingInfo: makeNative(function encodingInfo(queryConfig) {
+      return Promise.resolve({
+        supported: true,
+        smooth: true,
+        powerEfficient: true,
+        configuration: queryConfig || {}
+      });
+    }, 'encodingInfo')
+  };
+
+  // canShare / share（Chrome 89+，部分平台支持）
+  navigator.canShare = makeNative(function canShare(data) {
+    return false;
+  }, 'canShare');
+  navigator.share = makeNative(function share(data) {
+    return Promise.reject(new DOMException('Share canceled'));
+  }, 'share');
+
   // storage
   navigator.storage = {
     estimate: makeNative(function estimate() {
@@ -385,6 +413,12 @@ function install(sandbox, config = {}) {
     clearWatch: makeNative(function clearWatch(id) {}, 'clearWatch')
   };
 
+  // navigator.getUserMedia (deprecated legacy API, but still exists in Chrome)
+  navigator.getUserMedia = makeNative(function getUserMedia(constraints, success, error) {
+    if (error) setTimeout(() => error({ code: 1, message: 'Permission denied' }), 0);
+  }, 'getUserMedia');
+  navigator.webkitGetUserMedia = navigator.getUserMedia;
+
   // battery
   navigator.getBattery = makeNative(function getBattery() {
     return Promise.resolve({
@@ -407,6 +441,16 @@ function install(sandbox, config = {}) {
     writeText: makeNative(function writeText(text) { return Promise.resolve(); }, 'writeText')
   };
 
+  // mediaSession (MediaSession API)
+  navigator.mediaSession = {
+    metadata: null,
+    playbackState: 'none',
+    setActionHandler: makeNative(function setActionHandler(action, handler) {}, 'setActionHandler'),
+    setCameraActive: makeNative(function setCameraActive(active) {}, 'setCameraActive'),
+    setMicrophoneActive: makeNative(function setMicrophoneActive(active) {}, 'setMicrophoneActive'),
+    setPositionState: makeNative(function setPositionState(state) {}, 'setPositionState')
+  };
+
   // sendBeacon
   navigator.sendBeacon = makeNative(function sendBeacon(url, data) {
     return true;
@@ -420,6 +464,224 @@ function install(sandbox, config = {}) {
     throw new DOMException('', 'SecurityError');
   }, 'unregisterProtocolHandler');
 
+  // WebXR (xr)
+  navigator.xr = {
+    isSessionSupported: makeNative(function(mode) {
+      return Promise.resolve(false);
+    }, 'isSessionSupported'),
+    requestSession: makeNative(function(mode, options) {
+      return Promise.reject(new DOMException('Access to the feature "xr" is not allowed.', 'SecurityError'));
+    }, 'requestSession'),
+    getAvailability: makeNative(function() {
+      return Promise.resolve(false);
+    }, 'getAvailability'),
+    supportsSession: makeNative(function(mode) {
+      return false;
+    }, 'supportsSession')
+  };
+
+  // WebHID
+  navigator.hid = {
+    requestDevice: makeNative(function(options) {
+      return Promise.reject(new DOMException('Access to the feature "hid" is not allowed.', 'SecurityError'));
+    }, 'requestDevice'),
+    getDevices: makeNative(function() {
+      return Promise.resolve([]);
+    }, 'getDevices'),
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener')
+  };
+
+  // Web Bluetooth
+  navigator.bluetooth = {
+    requestDevice: makeNative(function(options) {
+      return Promise.reject(new DOMException('Access to the feature "bluetooth" is not allowed.', 'SecurityError'));
+    }, 'requestDevice'),
+    getAvailability: makeNative(function() {
+      return Promise.resolve(false);
+    }, 'getAvailability'),
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener')
+  };
+
+  // Web USB
+  navigator.usb = {
+    requestDevice: makeNative(function(options) {
+      return Promise.reject(new DOMException('Access to the feature "usb" is not allowed.', 'SecurityError'));
+    }, 'requestDevice'),
+    getDevices: makeNative(function() {
+      return Promise.resolve([]);
+    }, 'getDevices'),
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener')
+  };
+
+  // Web Serial
+  navigator.serial = {
+    requestPort: makeNative(function(options) {
+      return Promise.reject(new DOMException('Access to the feature "serial" is not allowed.', 'SecurityError'));
+    }, 'requestPort'),
+    getPorts: makeNative(function() {
+      return Promise.resolve([]);
+    }, 'getPorts'),
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener')
+  };
+
+  // Web Share
+  navigator.share = makeNative(function(data) {
+    return Promise.reject(new DOMException('Access to the feature "share" is not allowed.', 'SecurityError'));
+  }, 'share');
+
+  // Web Wake Lock
+  navigator.wakeLock = {
+    request: makeNative(function(type) {
+      return Promise.reject(new DOMException('Access to the feature "wakeLock" is not allowed.', 'SecurityError'));
+    }, 'request')
+  };
+
+  // Web Locks
+  navigator.locks = {
+    request: makeNative(function(name, callback) {
+      return Promise.resolve(callback({ release: function() {} }));
+    }, 'request'),
+    query: makeNative(function() {
+      return Promise.resolve([]);
+    }, 'query')
+  };
+
+  // Web Gamepad
+  navigator.getGamepads = makeNative(function() {
+    return [];
+  }, 'getGamepads');
+
+  // Web Credentials Management
+  navigator.credentials = navigator.credentials || {};
+
+  // Web Payment Request
+  navigator.canMakePayment = makeNative(function() {
+    return Promise.resolve(false);
+  }, 'canMakePayment');
+
+  // Virtual Keyboard
+  navigator.virtualKeyboard = {
+    show: makeNative(function() {}, 'show'),
+    hide: makeNative(function() {}, 'hide'),
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener'),
+    overlaysContent: false
+  };
+
+  // Content Index
+  navigator.contentIndex = {
+    add: makeNative(function(description) {
+      return Promise.resolve();
+    }, 'add'),
+    delete: makeNative(function(id) {
+      return Promise.resolve();
+    }, 'delete'),
+    getAll: makeNative(function() {
+      return Promise.resolve([]);
+    }, 'getAll')
+  };
+
+  // Scheduler API (navigator.scheduling)
+  navigator.scheduling = {
+    isInputPending: makeNative(function(options) {
+      return false;
+    }, 'isInputPending')
+  };
+
+  // WebGPU (navigator.gpu)
+  function GPU() {}
+  makeNative(GPU, 'GPU');
+  navigator.gpu = {
+    requestAdapter: makeNative(function(options) {
+      return Promise.resolve(null);
+    }, 'requestAdapter'),
+    wgslLanguageFeatures: {
+      size: 0,
+      has: makeNative(function(feature) { return false; }, 'has'),
+      keys: makeNative(function() { return []; }, 'keys'),
+      values: makeNative(function() { return []; }, 'values'),
+      entries: makeNative(function() { return []; }, 'entries'),
+      forEach: makeNative(function(cb) {}, 'forEach')
+    }
+  };
+  Object.defineProperty(navigator.gpu, Symbol.toStringTag, {
+    value: 'GPU', writable: false, configurable: true, enumerable: false
+  });
+
+  // Ink API (navigator.ink)
+  navigator.ink = {
+    requestPresenter: makeNative(function(presentationType) {
+      return Promise.resolve({
+        updateInkTrailStartPoint: makeNative(function(param) {}, 'updateInkTrailStartPoint'),
+        expectedImprovement: 0
+      });
+    }, 'requestPresenter')
+  };
+
+  // Presentation API
+  navigator.presentation = {
+    defaultRequest: null,
+    receiver: null
+  };
+
+  // Remote Playback API
+  navigator.remotePlayback = {
+    state: 'disconnected',
+    watchAvailability: makeNative(function(callback) {
+      return Promise.resolve(false);
+    }, 'watchAvailability'),
+    cancelWatchAvailability: makeNative(function(id) {
+      return Promise.resolve();
+    }, 'cancelWatchAvailability'),
+    prompt: makeNative(function() {
+      return Promise.resolve();
+    }, 'prompt')
+  };
+
+  // Managed Configuration API
+  navigator.managed = {
+    getManagedConfig: makeNative(function() {
+      return Promise.resolve({});
+    }, 'getManagedConfig')
+  };
+
+  // Window Controls Overlay
+  navigator.windowControlsDOM = undefined;
+
+  // Deprecated storage APIs (WebKit) - fireyejs.js uses these
+  navigator.queryUsageAndQuota = makeNative(function(callback, errorCallback) {
+    if (typeof callback === 'function') {
+      callback(0, 0);
+    }
+  }, 'queryUsageAndQuota');
+  navigator.requestQuota = makeNative(function(type, size, callback, errorCallback) {
+    if (typeof callback === 'function') {
+      callback(size);
+    }
+  }, 'requestQuota');
+
+  // User Agent Client Hints API (high entropy values)
+  if (navigator.userAgentData) {
+    navigator.userAgentData.getHighEntropyValues = makeNative(function(hints) {
+      return Promise.resolve({
+        architecture: 'x86',
+        bitness: '64',
+        brands: navigator.userAgentData.brands || [],
+        fullVersionList: navigator.userAgentData.brands || [],
+        mobile: false,
+        model: '',
+        platform: 'Windows',
+        platformVersion: '15.0.0',
+        uaFullVersion: '131.0.0.0',
+        wow64: false
+      });
+    }, 'getHighEntropyValues');
+  }
+
   // ── 安装到 sandbox ──
   sandbox.Navigator = Navigator;
   sandbox.navigator = navigator;
@@ -431,6 +693,27 @@ function install(sandbox, config = {}) {
   Object.defineProperty(Navigator.prototype, 'constructor', {
     value: Navigator,
     writable: true,
+    configurable: true,
+    enumerable: false
+  });
+
+  Object.defineProperty(navigator, Symbol.toStringTag, {
+    value: 'Navigator',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  Object.defineProperty(plugins, Symbol.toStringTag, {
+    value: 'PluginArray',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  Object.defineProperty(mimeTypes, Symbol.toStringTag, {
+    value: 'MimeTypeArray',
+    writable: false,
     configurable: true,
     enumerable: false
   });

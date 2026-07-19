@@ -88,6 +88,9 @@ function install(sandbox, config = {}) {
   const _private = new WeakMap();
 
   function getPrivate(xhr) {
+    // handler.js 风控脚本会用代理替换 window.XMLHttpRequest，代理上有 riskXhr 指向真实实例
+    // 所有操作必须委托给真实实例，否则 WeakMap 中没有对应私有状态
+    if (xhr && xhr.riskXhr) xhr = xhr.riskXhr;
     let p = _private.get(xhr);
     if (!p) {
       p = {};
@@ -151,12 +154,26 @@ function install(sandbox, config = {}) {
 
   function _dispatchEvent(xhr, type) {
     const p = getPrivate(xhr);
-    const event = { type, target: xhr };
-    if (p.listeners[type]) {
+    // 若通过 handler.js 包装而来，事件目标应保持是 wrapper（用户代码引用的是 wrapper）
+    const target = (xhr && xhr.riskXhr) ? xhr : xhr;
+    const event = { type, target };
+    if (p.listeners && p.listeners[type]) {
       for (const cb of p.listeners[type]) cb(event);
     }
     const handlerKey = 'on' + type;
-    if (p[handlerKey]) p[handlerKey].call(xhr, event);
+    // 优先私有状态中的回调
+    if (p[handlerKey]) {
+      p[handlerKey].call(target, event);
+    }
+    // handler.js wrapper 可能把回调直接挂到 riskXhr 实例属性上（绕过私有状态）
+    const real = xhr && xhr.riskXhr;
+    if (real && real[handlerKey] && real[handlerKey] !== p[handlerKey]) {
+      real[handlerKey].call(target, event);
+    }
+    // 也检查 wrapper 上的直接属性
+    if (xhr && xhr[handlerKey] && xhr[handlerKey] !== p[handlerKey] && (!real || xhr[handlerKey] !== real[handlerKey])) {
+      xhr[handlerKey].call(target, event);
+    }
   }
 
   function _doSend(xhr) {
@@ -227,11 +244,87 @@ function install(sandbox, config = {}) {
   }
 
   // ── TLS 异步发送逻辑 ──
+  function _processSetCookie(headers) {
+    if (sandbox.document && sandbox.document.cookie !== undefined) {
+      const lowerHeaders = {};
+      for (const [k, v] of Object.entries(headers || {})) {
+        lowerHeaders[k.toLowerCase()] = v;
+      }
+      if (lowerHeaders['set-cookie']) {
+        const cookies = Array.isArray(lowerHeaders['set-cookie']) ? lowerHeaders['set-cookie'] : [lowerHeaders['set-cookie']];
+        for (const cookie of cookies) {
+          const cookieStr = String(cookie);
+          const idx = cookieStr.indexOf(';');
+          const nameValue = idx !== -1 ? cookieStr.substring(0, idx).trim() : cookieStr.trim();
+          if (nameValue) {
+            sandbox.document.cookie = nameValue;
+          }
+        }
+      }
+    }
+  }
+
   function _doTlsSend(xhr) {
     const p = getPrivate(xhr);
 
+    // 浏览器行为：自动从 document.cookie 读取 cookie 合并到请求头
+    // 如果用户已手动设置 Cookie 头，则不覆盖（仅补充缺失的）
+    const reqHeaders = Object.assign({}, p.requestHeaders);
+    let hasCookieHeader = false;
+    for (const k of Object.keys(reqHeaders)) {
+      if (k.toLowerCase() === 'cookie') {
+        hasCookieHeader = true;
+        break;
+      }
+    }
+    if (sandbox.document && typeof sandbox.document.cookie === 'string') {
+      const docCookie = sandbox.document.cookie;
+      if (docCookie) {
+        // document.cookie 格式: "name1=val1; name2=val2; ..."
+        // 解析成 name->value 映射
+        const docCookies = {};
+        for (const part of docCookie.split(';')) {
+          const eq = part.indexOf('=');
+          if (eq > 0) {
+            const n = part.substring(0, eq).trim();
+            const v = part.substring(eq + 1).trim();
+            if (n) docCookies[n] = v;
+          }
+        }
+
+        if (hasCookieHeader) {
+          // 找到现有的 Cookie 头，合并：用户已设置的优先，补充 document.cookie 中缺失的
+          let cookieKey = 'cookie';
+          let existingCookie = '';
+          for (const k of Object.keys(reqHeaders)) {
+            if (k.toLowerCase() === 'cookie') {
+              cookieKey = k;
+              existingCookie = reqHeaders[k];
+              break;
+            }
+          }
+          const userCookies = {};
+          for (const part of String(existingCookie).split(';')) {
+            const eq = part.indexOf('=');
+            if (eq > 0) {
+              const n = part.substring(0, eq).trim();
+              const v = part.substring(eq + 1).trim();
+              if (n) userCookies[n] = v;
+            }
+          }
+          // 合并：用户已设置 + document.cookie 中缺失的
+          const merged = Object.assign({}, docCookies, userCookies);
+          const mergedStr = Object.keys(merged).map(n => `${n}=${merged[n]}`).join('; ');
+          reqHeaders[cookieKey] = mergedStr;
+        } else {
+          // 直接用 document.cookie
+          reqHeaders['cookie'] = docCookie;
+        }
+      }
+    }
+
     sandbox.__tlsRequest(p.method, p.url, {
-      headers: p.requestHeaders,
+      headers: reqHeaders,
       body: p.body,
       followRedirects: true
     }).then(result => {
@@ -245,6 +338,9 @@ function install(sandbox, config = {}) {
       p.responseHeaders = result.headers || {};
       p.responseText = result.body || '';
       p.response = result.body || '';
+
+      _processSetCookie(result.headers);
+
       _setState(xhr, HEADERS_RECEIVED);
       _setState(xhr, LOADING);
       _setState(xhr, DONE);
@@ -255,7 +351,10 @@ function install(sandbox, config = {}) {
         global.clearTimeout(p.timer);
         p.timer = null;
       }
+      // 调试用：输出真实错误信息
+      console.error('[XHR ERROR]', p.method, p.url, '->', e && e.message ? e.message : e);
       p.status = 0;
+      p._lastError = e;
       _setState(xhr, DONE);
       _dispatchEvent(xhr, 'error');
       _dispatchEvent(xhr, 'loadend');

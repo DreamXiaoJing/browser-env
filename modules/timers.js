@@ -26,6 +26,13 @@ function install(sandbox, config = {}) {
   sandbox.setTimeout = makeNative(function setTimeout(callback, delay, ...args) {
     // RS VMP 使用 setTimeout(fn, 0) 异步链, 需入队列供 flushTimers 同步执行
     // 浏览器最小延迟 4ms, 但 RS 的 0 延迟必须进 pending 队列
+    
+    // 调试：如果callback不是函数也不是字符串，打印调用栈
+    if (sandbox.__debugTimers__ && typeof callback !== 'function' && typeof callback !== 'string') {
+      console.error('[SETTIMEOUT ERROR] callback is not a function or string:', typeof callback, callback);
+      console.error('[SETTIMEOUT ERROR] stack:', new Error().stack);
+    }
+    
     if (delay === 0 || delay === undefined || delay === null) {
       var id = timerIdCounter++;
       pendingZeroDelay.push({ id: id, fn: typeof callback === 'string' ? function() { sandbox.eval(callback); } : callback, args: args });
@@ -135,7 +142,19 @@ function install(sandbox, config = {}) {
           batch[i].fn.apply(undefined, batch[i].args);
           executed++;
         } catch (e) {
-          // RS 用异常做控制流，静默
+          // 记录错误到sandbox中
+          if (sandbox.__timerErrors__) {
+            sandbox.__timerErrors__.push({
+              message: e.message,
+              stack: e.stack,
+              id: batch[i].id
+            });
+          }
+          // 如果开启了调试模式，则打印错误
+          if (sandbox.__debugTimers__) {
+            console.error('[TIMER FLUSH ERROR]', e.message);
+            console.error('[TIMER FLUSH ERROR] stack:', (e.stack || '').split('\n').slice(0, 5).join('\n'));
+          }
         }
       }
     }
@@ -146,6 +165,11 @@ function install(sandbox, config = {}) {
   sandbox.__pendingTimerCount = makeNative(function() {
     return pendingZeroDelay.length;
   }, '__pendingTimerCount');
+
+  // ── __getTimerCount：获取所有定时器数量 ──
+  sandbox.__getTimerCount = makeNative(function() {
+    return pendingZeroDelay.length;
+  }, '__getTimerCount');
 
   // ── 检查：window 上也要有 ──
   if (sandbox.window) {

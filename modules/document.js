@@ -85,6 +85,333 @@ function install(sandbox, config = {}) {
   makeNative(HTMLAudioElement, 'HTMLAudioElement');
   Object.setPrototypeOf(HTMLAudioElement.prototype, HTMLElement.prototype);
 
+  function HTMLVideoElement() {}
+  makeNative(HTMLVideoElement, 'HTMLVideoElement');
+  Object.setPrototypeOf(HTMLVideoElement.prototype, HTMLElement.prototype);
+
+  function HTMLIFrameElement() {}
+  makeNative(HTMLIFrameElement, 'HTMLIFrameElement');
+  Object.setPrototypeOf(HTMLIFrameElement.prototype, HTMLElement.prototype);
+
+  function HTMLInputElement() {}
+  makeNative(HTMLInputElement, 'HTMLInputElement');
+  Object.setPrototypeOf(HTMLInputElement.prototype, HTMLElement.prototype);
+
+  function HTMLFormElement() {}
+  makeNative(HTMLFormElement, 'HTMLFormElement');
+  Object.setPrototypeOf(HTMLFormElement.prototype, HTMLElement.prototype);
+
+  function HTMLTextAreaElement() {}
+  makeNative(HTMLTextAreaElement, 'HTMLTextAreaElement');
+  Object.setPrototypeOf(HTMLTextAreaElement.prototype, HTMLElement.prototype);
+
+  function HTMLSelectElement() {}
+  makeNative(HTMLSelectElement, 'HTMLSelectElement');
+  Object.setPrototypeOf(HTMLSelectElement.prototype, HTMLElement.prototype);
+
+  function HTMLOptionElement() {}
+  makeNative(HTMLOptionElement, 'HTMLOptionElement');
+  Object.setPrototypeOf(HTMLOptionElement.prototype, HTMLElement.prototype);
+
+  function HTMLButtonElement() {}
+  makeNative(HTMLButtonElement, 'HTMLButtonElement');
+  Object.setPrototypeOf(HTMLButtonElement.prototype, HTMLElement.prototype);
+
+  function HTMLTableElement() {}
+  makeNative(HTMLTableElement, 'HTMLTableElement');
+  Object.setPrototypeOf(HTMLTableElement.prototype, HTMLElement.prototype);
+
+  function HTMLTableRowElement() {}
+  makeNative(HTMLTableRowElement, 'HTMLTableRowElement');
+  Object.setPrototypeOf(HTMLTableRowElement.prototype, HTMLElement.prototype);
+
+  function HTMLTableCellElement() {}
+  makeNative(HTMLTableCellElement, 'HTMLTableCellElement');
+  Object.setPrototypeOf(HTMLTableCellElement.prototype, HTMLElement.prototype);
+
+  function HTMLAnchorElement() {}
+  makeNative(HTMLAnchorElement, 'HTMLAnchorElement');
+  Object.setPrototypeOf(HTMLAnchorElement.prototype, HTMLElement.prototype);
+
+  function HTMLSpanElement() {}
+  makeNative(HTMLSpanElement, 'HTMLSpanElement');
+  Object.setPrototypeOf(HTMLSpanElement.prototype, HTMLElement.prototype);
+
+  function HTMLLinkElement() {}
+  makeNative(HTMLLinkElement, 'HTMLLinkElement');
+  Object.setPrototypeOf(HTMLLinkElement.prototype, HTMLElement.prototype);
+
+  function HTMLMetaElement() {}
+  makeNative(HTMLMetaElement, 'HTMLMetaElement');
+  Object.setPrototypeOf(HTMLMetaElement.prototype, HTMLElement.prototype);
+
+  function HTMLHeadElement() {}
+  makeNative(HTMLHeadElement, 'HTMLHeadElement');
+  Object.setPrototypeOf(HTMLHeadElement.prototype, HTMLElement.prototype);
+
+  function HTMLBodyElement() {}
+  makeNative(HTMLBodyElement, 'HTMLBodyElement');
+  Object.setPrototypeOf(HTMLBodyElement.prototype, HTMLElement.prototype);
+
+  function HTMLHtmlElement() {}
+  makeNative(HTMLHtmlElement, 'HTMLHtmlElement');
+  Object.setPrototypeOf(HTMLHtmlElement.prototype, HTMLElement.prototype);
+
+  function HTMLScriptElement() {}
+  makeNative(HTMLScriptElement, 'HTMLScriptElement');
+  Object.setPrototypeOf(HTMLScriptElement.prototype, HTMLElement.prototype);
+
+  function HTMLStyleElement() {}
+  makeNative(HTMLStyleElement, 'HTMLStyleElement');
+  Object.setPrototypeOf(HTMLStyleElement.prototype, HTMLElement.prototype);
+
+  function HTMLDivElement() {}
+  makeNative(HTMLDivElement, 'HTMLDivElement');
+  Object.setPrototypeOf(HTMLDivElement.prototype, HTMLElement.prototype);
+
+  function HTMLCanvasElement() {}
+  makeNative(HTMLCanvasElement, 'HTMLCanvasElement');
+  Object.setPrototypeOf(HTMLCanvasElement.prototype, HTMLElement.prototype);
+
+  function HTMLImageElement() {}
+  makeNative(HTMLImageElement, 'HTMLImageElement');
+  Object.setPrototypeOf(HTMLImageElement.prototype, HTMLElement.prototype);
+
+  function HTMLParagraphElement() {}
+  makeNative(HTMLParagraphElement, 'HTMLParagraphElement');
+  Object.setPrototypeOf(HTMLParagraphElement.prototype, HTMLElement.prototype);
+
+  function HTMLHeadingElement() {}
+  makeNative(HTMLHeadingElement, 'HTMLHeadingElement');
+  Object.setPrototypeOf(HTMLHeadingElement.prototype, HTMLElement.prototype);
+
+  function HTMLUnorderedListElement() {}
+  makeNative(HTMLUnorderedListElement, 'HTMLUnorderedListElement');
+  Object.setPrototypeOf(HTMLUnorderedListElement.prototype, HTMLElement.prototype);
+
+  function HTMLOListElement() {}
+  makeNative(HTMLOListElement, 'HTMLOListElement');
+  Object.setPrototypeOf(HTMLOListElement.prototype, HTMLElement.prototype);
+
+  function HTMLLIElement() {}
+  makeNative(HTMLLIElement, 'HTMLLIElement');
+  Object.setPrototypeOf(HTMLLIElement.prototype, HTMLElement.prototype);
+
+  function HTMLDListElement() {}
+  makeNative(HTMLDListElement, 'HTMLDListElement');
+  Object.setPrototypeOf(HTMLDListElement.prototype, HTMLElement.prototype);
+
+  function HTMLQuoteElement() {}
+  makeNative(HTMLQuoteElement, 'HTMLQuoteElement');
+  Object.setPrototypeOf(HTMLQuoteElement.prototype, HTMLElement.prototype);
+
+  function HTMLPreElement() {}
+  makeNative(HTMLPreElement, 'HTMLPreElement');
+  Object.setPrototypeOf(HTMLPreElement.prototype, HTMLElement.prototype);
+
+  function HTMLHRElement() {}
+  makeNative(HTMLHRElement, 'HTMLHRElement');
+  Object.setPrototypeOf(HTMLHRElement.prototype, HTMLElement.prototype);
+
+  function HTMLBRElement() {}
+  makeNative(HTMLBRElement, 'HTMLBRElement');
+  Object.setPrototypeOf(HTMLBRElement.prototype, HTMLElement.prototype);
+
+  function HTMLBaseElement() {}
+  makeNative(HTMLBaseElement, 'HTMLBaseElement');
+  Object.setPrototypeOf(HTMLBaseElement.prototype, HTMLElement.prototype);
+
+  function HTMLParamElement() {}
+  makeNative(HTMLParamElement, 'HTMLParamElement');
+  Object.setPrototypeOf(HTMLParamElement.prototype, HTMLElement.prototype);
+
+  function HTMLAppletElement() {}
+  makeNative(HTMLAppletElement, 'HTMLAppletElement');
+  Object.setPrototypeOf(HTMLAppletElement.prototype, HTMLElement.prototype);
+
+  function HTMLFrameElement() {}
+  makeNative(HTMLFrameElement, 'HTMLFrameElement');
+  Object.setPrototypeOf(HTMLFrameElement.prototype, HTMLElement.prototype);
+
+  function HTMLFrameSetElement() {}
+  makeNative(HTMLFrameSetElement, 'HTMLFrameSetElement');
+  Object.setPrototypeOf(HTMLFrameSetElement.prototype, HTMLElement.prototype);
+
+  function HTMLMarqueeElement() {}
+  makeNative(HTMLMarqueeElement, 'HTMLMarqueeElement');
+  Object.setPrototypeOf(HTMLMarqueeElement.prototype, HTMLElement.prototype);
+
+  function HTMLUnknownElement() {}
+  makeNative(HTMLUnknownElement, 'HTMLUnknownElement');
+  Object.setPrototypeOf(HTMLUnknownElement.prototype, HTMLElement.prototype);
+
+  function HTMLDetailsElement() {}
+  makeNative(HTMLDetailsElement, 'HTMLDetailsElement');
+  Object.setPrototypeOf(HTMLDetailsElement.prototype, HTMLElement.prototype);
+
+  function HTMLDialogElement() {}
+  makeNative(HTMLDialogElement, 'HTMLDialogElement');
+  Object.setPrototypeOf(HTMLDialogElement.prototype, HTMLElement.prototype);
+
+  function HTMLSlotElement() {}
+  makeNative(HTMLSlotElement, 'HTMLSlotElement');
+  Object.setPrototypeOf(HTMLSlotElement.prototype, HTMLElement.prototype);
+
+  function HTMLTemplateElement() {}
+  makeNative(HTMLTemplateElement, 'HTMLTemplateElement');
+  Object.setPrototypeOf(HTMLTemplateElement.prototype, HTMLElement.prototype);
+
+  function HTMLShadowRoot() {}
+  makeNative(HTMLShadowRoot, 'HTMLShadowRoot');
+  Object.setPrototypeOf(HTMLShadowRoot.prototype, HTMLElement.prototype);
+
+  function HTMLPictureElement() {}
+  makeNative(HTMLPictureElement, 'HTMLPictureElement');
+  Object.setPrototypeOf(HTMLPictureElement.prototype, HTMLElement.prototype);
+
+  function HTMLSourceElement() {}
+  makeNative(HTMLSourceElement, 'HTMLSourceElement');
+  Object.setPrototypeOf(HTMLSourceElement.prototype, HTMLElement.prototype);
+
+  function HTMLTrackElement() {}
+  makeNative(HTMLTrackElement, 'HTMLTrackElement');
+  Object.setPrototypeOf(HTMLTrackElement.prototype, HTMLElement.prototype);
+
+  function HTMLMediaElement() {}
+  makeNative(HTMLMediaElement, 'HTMLMediaElement');
+  Object.setPrototypeOf(HTMLMediaElement.prototype, HTMLElement.prototype);
+
+  function HTMLFormControlsCollection() {}
+  makeNative(HTMLFormControlsCollection, 'HTMLFormControlsCollection');
+  Object.setPrototypeOf(HTMLFormControlsCollection.prototype, HTMLCollection.prototype);
+
+  function HTMLFieldSetElement() {}
+  makeNative(HTMLFieldSetElement, 'HTMLFieldSetElement');
+  Object.setPrototypeOf(HTMLFieldSetElement.prototype, HTMLElement.prototype);
+
+  function HTMLLegendElement() {}
+  makeNative(HTMLLegendElement, 'HTMLLegendElement');
+  Object.setPrototypeOf(HTMLLegendElement.prototype, HTMLElement.prototype);
+
+  function HTMLLabelElement() {}
+  makeNative(HTMLLabelElement, 'HTMLLabelElement');
+  Object.setPrototypeOf(HTMLLabelElement.prototype, HTMLElement.prototype);
+
+  function HTMLMeterElement() {}
+  makeNative(HTMLMeterElement, 'HTMLMeterElement');
+  Object.setPrototypeOf(HTMLMeterElement.prototype, HTMLElement.prototype);
+
+  function HTMLProgressElement() {}
+  makeNative(HTMLProgressElement, 'HTMLProgressElement');
+  Object.setPrototypeOf(HTMLProgressElement.prototype, HTMLElement.prototype);
+
+  function HTMLDataElement() {}
+  makeNative(HTMLDataElement, 'HTMLDataElement');
+  Object.setPrototypeOf(HTMLDataElement.prototype, HTMLElement.prototype);
+
+  function HTMLTimeElement() {}
+  makeNative(HTMLTimeElement, 'HTMLTimeElement');
+  Object.setPrototypeOf(HTMLTimeElement.prototype, HTMLElement.prototype);
+
+  function HTMLRubyElement() {}
+  makeNative(HTMLRubyElement, 'HTMLRubyElement');
+  Object.setPrototypeOf(HTMLRubyElement.prototype, HTMLElement.prototype);
+
+  function HTMLRTElement() {}
+  makeNative(HTMLRTElement, 'HTMLRTElement');
+  Object.setPrototypeOf(HTMLRTElement.prototype, HTMLElement.prototype);
+
+  function HTMLRPElement() {}
+  makeNative(HTMLRPElement, 'HTMLRPElement');
+  Object.setPrototypeOf(HTMLRPElement.prototype, HTMLElement.prototype);
+
+  function HTMLBDOElement() {}
+  makeNative(HTMLBDOElement, 'HTMLBDOElement');
+  Object.setPrototypeOf(HTMLBDOElement.prototype, HTMLElement.prototype);
+
+  function HTMLCiteElement() {}
+  makeNative(HTMLCiteElement, 'HTMLCiteElement');
+  Object.setPrototypeOf(HTMLCiteElement.prototype, HTMLElement.prototype);
+
+  function HTMLDFNElement() {}
+  makeNative(HTMLDFNElement, 'HTMLDFNElement');
+  Object.setPrototypeOf(HTMLDFNElement.prototype, HTMLElement.prototype);
+
+  function HTMLVarElement() {}
+  makeNative(HTMLVarElement, 'HTMLVarElement');
+  Object.setPrototypeOf(HTMLVarElement.prototype, HTMLElement.prototype);
+
+  function HTMLKbdElement() {}
+  makeNative(HTMLKbdElement, 'HTMLKbdElement');
+  Object.setPrototypeOf(HTMLKbdElement.prototype, HTMLElement.prototype);
+
+  function HTMLSampElement() {}
+  makeNative(HTMLSampElement, 'HTMLSampElement');
+  Object.setPrototypeOf(HTMLSampElement.prototype, HTMLElement.prototype);
+
+  function HTMLCodeElement() {}
+  makeNative(HTMLCodeElement, 'HTMLCodeElement');
+  Object.setPrototypeOf(HTMLCodeElement.prototype, HTMLElement.prototype);
+
+  function HTMLElementElement() {}
+  makeNative(HTMLElementElement, 'HTMLElementElement');
+  Object.setPrototypeOf(HTMLElementElement.prototype, HTMLElement.prototype);
+
+  function HTMLArticleElement() {}
+  makeNative(HTMLArticleElement, 'HTMLArticleElement');
+  Object.setPrototypeOf(HTMLArticleElement.prototype, HTMLElement.prototype);
+
+  function HTMLAsideElement() {}
+  makeNative(HTMLAsideElement, 'HTMLAsideElement');
+  Object.setPrototypeOf(HTMLAsideElement.prototype, HTMLElement.prototype);
+
+  function HTMLFooterElement() {}
+  makeNative(HTMLFooterElement, 'HTMLFooterElement');
+  Object.setPrototypeOf(HTMLFooterElement.prototype, HTMLElement.prototype);
+
+  function HTMLHeaderElement() {}
+  makeNative(HTMLHeaderElement, 'HTMLHeaderElement');
+  Object.setPrototypeOf(HTMLHeaderElement.prototype, HTMLElement.prototype);
+
+  function HTMLHGroupElement() {}
+  makeNative(HTMLHGroupElement, 'HTMLHGroupElement');
+  Object.setPrototypeOf(HTMLHGroupElement.prototype, HTMLElement.prototype);
+
+  function HTMLMainElement() {}
+  makeNative(HTMLMainElement, 'HTMLMainElement');
+  Object.setPrototypeOf(HTMLMainElement.prototype, HTMLElement.prototype);
+
+  function HTMLNavElement() {}
+  makeNative(HTMLNavElement, 'HTMLNavElement');
+  Object.setPrototypeOf(HTMLNavElement.prototype, HTMLElement.prototype);
+
+  function HTMLSectionElement() {}
+  makeNative(HTMLSectionElement, 'HTMLSectionElement');
+  Object.setPrototypeOf(HTMLSectionElement.prototype, HTMLElement.prototype);
+
+  function HTMLSummaryElement() {}
+  makeNative(HTMLSummaryElement, 'HTMLSummaryElement');
+  Object.setPrototypeOf(HTMLSummaryElement.prototype, HTMLElement.prototype);
+
+  function HTMLMenuElement() {}
+  makeNative(HTMLMenuElement, 'HTMLMenuElement');
+  Object.setPrototypeOf(HTMLMenuElement.prototype, HTMLElement.prototype);
+
+  function HTMLMenuItemElement() {}
+  makeNative(HTMLMenuItemElement, 'HTMLMenuItemElement');
+  Object.setPrototypeOf(HTMLMenuItemElement.prototype, HTMLElement.prototype);
+
+  function HTMLDirectoryElement() {}
+  makeNative(HTMLDirectoryElement, 'HTMLDirectoryElement');
+  Object.setPrototypeOf(HTMLDirectoryElement.prototype, HTMLElement.prototype);
+
+  function HTMLSearchElement() {}
+  makeNative(HTMLSearchElement, 'HTMLSearchElement');
+  Object.setPrototypeOf(HTMLSearchElement.prototype, HTMLElement.prototype);
+
+  function HTMLSlotable() {}
+  makeNative(HTMLSlotable, 'HTMLSlotable');
+
   function Image(width, height) {
     var img = new HTMLImageElement();
     if (width !== undefined) img.width = width;
@@ -98,7 +425,6 @@ function install(sandbox, config = {}) {
   Object.setPrototypeOf(Comment.prototype, Node.prototype);
   Comment.prototype.nodeType = 8;
 
-  // 简单实现 createElement
   const tagMap = {
     div: HTMLDivElement,
     a: HTMLAnchorElement,
@@ -106,9 +432,107 @@ function install(sandbox, config = {}) {
     style: HTMLStyleElement,
     canvas: HTMLCanvasElement,
     audio: HTMLAudioElement,
+    video: HTMLVideoElement,
+    iframe: HTMLIFrameElement,
     html: HTMLHtmlElement,
     head: HTMLHeadElement,
-    body: HTMLBodyElement
+    body: HTMLBodyElement,
+    input: HTMLInputElement,
+    form: HTMLFormElement,
+    textarea: HTMLTextAreaElement,
+    select: HTMLSelectElement,
+    option: HTMLOptionElement,
+    button: HTMLButtonElement,
+    table: HTMLTableElement,
+    tr: HTMLTableRowElement,
+    td: HTMLTableCellElement,
+    th: HTMLTableCellElement,
+    span: HTMLSpanElement,
+    link: HTMLLinkElement,
+    meta: HTMLMetaElement,
+    p: HTMLParagraphElement,
+    h1: HTMLHeadingElement,
+    h2: HTMLHeadingElement,
+    h3: HTMLHeadingElement,
+    h4: HTMLHeadingElement,
+    h5: HTMLHeadingElement,
+    h6: HTMLHeadingElement,
+    ul: HTMLUnorderedListElement,
+    ol: HTMLOListElement,
+    li: HTMLLIElement,
+    dl: HTMLDListElement,
+    dt: HTMLElement,
+    dd: HTMLElement,
+    blockquote: HTMLQuoteElement,
+    pre: HTMLPreElement,
+    hr: HTMLHRElement,
+    br: HTMLBRElement,
+    base: HTMLBaseElement,
+    param: HTMLParamElement,
+    applet: HTMLAppletElement,
+    frame: HTMLFrameElement,
+    frameset: HTMLFrameSetElement,
+    marquee: HTMLMarqueeElement,
+    details: HTMLDetailsElement,
+    dialog: HTMLDialogElement,
+    slot: HTMLSlotElement,
+    template: HTMLTemplateElement,
+    picture: HTMLPictureElement,
+    source: HTMLSourceElement,
+    track: HTMLTrackElement,
+    fieldset: HTMLFieldSetElement,
+    legend: HTMLLegendElement,
+    label: HTMLLabelElement,
+    meter: HTMLMeterElement,
+    progress: HTMLProgressElement,
+    data: HTMLDataElement,
+    time: HTMLTimeElement,
+    ruby: HTMLRubyElement,
+    rt: HTMLRTElement,
+    rp: HTMLRPElement,
+    bdo: HTMLBDOElement,
+    cite: HTMLCiteElement,
+    dfn: HTMLDFNElement,
+    var: HTMLVarElement,
+    kbd: HTMLKbdElement,
+    samp: HTMLSampElement,
+    code: HTMLCodeElement,
+    article: HTMLArticleElement,
+    aside: HTMLAsideElement,
+    footer: HTMLFooterElement,
+    header: HTMLHeaderElement,
+    hgroup: HTMLHGroupElement,
+    main: HTMLMainElement,
+    nav: HTMLNavElement,
+    section: HTMLSectionElement,
+    summary: HTMLSummaryElement,
+    menu: HTMLMenuElement,
+    menuitem: HTMLMenuItemElement,
+    dir: HTMLDirectoryElement,
+    search: HTMLSearchElement,
+    b: HTMLElement,
+    strong: HTMLElement,
+    i: HTMLElement,
+    em: HTMLElement,
+    u: HTMLElement,
+    s: HTMLElement,
+    strike: HTMLElement,
+    big: HTMLElement,
+    small: HTMLElement,
+    sup: HTMLElement,
+    sub: HTMLElement,
+    q: HTMLElement,
+    abbr: HTMLElement,
+    address: HTMLElement,
+    center: HTMLElement,
+    nobr: HTMLElement,
+    wbr: HTMLElement,
+    acronym: HTMLElement,
+    tt: HTMLElement,
+    xmp: HTMLElement,
+    plaintext: HTMLElement,
+    listing: HTMLElement,
+    blink: HTMLElement
   };
 
   // DOMTokenList (classList) 实现
@@ -325,6 +749,70 @@ function install(sandbox, config = {}) {
     el.parentNode = null;
     el.parentElement = null;
     el.innerHTML = '';
+    if (tagName.toLowerCase() === 'iframe') {
+      var iframeDoc = makeEl('html');
+      iframeDoc.nodeType = 9;
+      iframeDoc.nodeName = '#document';
+      iframeDoc.documentElement = makeEl('html');
+      iframeDoc.head = makeEl('head');
+      iframeDoc.body = makeEl('body');
+      iframeDoc.documentElement.appendChild(iframeDoc.head);
+      iframeDoc.documentElement.appendChild(iframeDoc.body);
+      iframeDoc.createElement = makeNative(function(tag) { return makeEl(tag); }, 'createElement');
+      iframeDoc.createTextNode = makeNative(function(data) { return { nodeType: 3, nodeName: '#text', data: String(data), textContent: String(data), parentNode: null }; }, 'createTextNode');
+      iframeDoc.createComment = makeNative(function(data) { return { nodeType: 8, nodeName: '#comment', data: String(data), parentNode: null }; }, 'createComment');
+      iframeDoc.createDocumentFragment = makeNative(function() { return makeEl('fragment'); }, 'createDocumentFragment');
+      iframeDoc.createEvent = makeNative(function(type) { return { type: type, initEvent: function() {}, preventDefault: function() {}, stopPropagation: function() {} }; }, 'createEvent');
+      iframeDoc.addEventListener = makeNative(function(type, cb) {
+        if (!iframeDoc._listeners) iframeDoc._listeners = {};
+        if (!iframeDoc._listeners[type]) iframeDoc._listeners[type] = [];
+        iframeDoc._listeners[type].push(cb);
+      }, 'addEventListener');
+      iframeDoc.removeEventListener = makeNative(function() {}, 'removeEventListener');
+      iframeDoc.dispatchEvent = makeNative(function() {}, 'dispatchEvent');
+      iframeDoc.write = makeNative(function() {}, 'write');
+      iframeDoc.writeln = makeNative(function() {}, 'writeln');
+      iframeDoc.open = makeNative(function() {}, 'open');
+      iframeDoc.close = makeNative(function() {}, 'close');
+      iframeDoc.getElementById = makeNative(function(id) {
+        function search(node) {
+          if (!node) return null;
+          if (node.id === id) return node;
+          if (node.childNodes) {
+            for (var i = 0; i < node.childNodes.length; i++) {
+              var found = search(node.childNodes[i]);
+              if (found) return found;
+            }
+          }
+          return null;
+        }
+        return search(iframeDoc.body) || search(iframeDoc.head);
+      }, 'getElementById');
+      iframeDoc.getElementsByClassName = makeNative(function(cls) { return []; }, 'getElementsByClassName');
+      iframeDoc.getElementsByTagName = makeNative(function(tag) { return []; }, 'getElementsByTagName');
+      iframeDoc.getElementsByName = makeNative(function(name) { return []; }, 'getElementsByName');
+      iframeDoc.cookie = '';
+      iframeDoc.readyState = 'complete';
+      iframeDoc.URL = 'about:blank';
+      iframeDoc.baseURI = 'about:blank';
+      iframeDoc.location = { href: 'about:blank', origin: 'null', protocol: 'about:', host: '', hostname: '', port: '', pathname: 'blank', search: '', hash: '', reload: function() {}, replace: function() {}, assign: function() {} };
+      iframeDoc.referrer = '';
+      iframeDoc.title = '';
+      iframeDoc.domain = '';
+      iframeDoc.implementation = { hasFeature: function() { return true; }, createHTMLDocument: function() { return iframeDoc; } };
+      iframeDoc.defaultView = el.contentWindow;
+
+      el.contentWindow = {
+        postMessage: makeNative(function(msg, origin) {}, 'postMessage'),
+        document: iframeDoc,
+        location: iframeDoc.location,
+        addEventListener: makeNative(function() {}, 'addEventListener'),
+        removeEventListener: makeNative(function() {}, 'removeEventListener'),
+        dispatchEvent: makeNative(function() {}, 'dispatchEvent')
+      };
+      el.contentDocument = iframeDoc;
+      el.contentWindow.document = iframeDoc;
+    }
     Object.defineProperty(el, 'textContent', {
       get: makeNative(function() {
         var result = '';
@@ -479,6 +967,42 @@ function install(sandbox, config = {}) {
     el.focus = makeNative(function() {}, 'focus');
     el.blur = makeNative(function() {}, 'blur');
     el.click = makeNative(function() {}, 'click');
+    el.remove = makeNative(function() {
+      if (el.parentNode && el.parentNode.removeChild) {
+        el.parentNode.removeChild(el);
+      }
+    }, 'remove');
+    el.attachShadow = makeNative(function(opts) {
+      var shadow = makeEl('shadow-root');
+      shadow.nodeType = 11;
+      shadow.nodeName = '#shadow-root';
+      shadow.host = el;
+      shadow.mode = (opts && opts.mode) || 'open';
+      el._shadowRoot = shadow;
+      return shadow;
+    }, 'attachShadow');
+    Object.defineProperty(el, 'shadowRoot', {
+      get: makeNative(function() { return el._shadowRoot || null; }, 'get shadowRoot'),
+      configurable: true
+    });
+    el.assign = makeNative(function() {}, 'assign');
+    el.after = makeNative(function() {}, 'after');
+    el.before = makeNative(function() {}, 'before');
+    el.append = makeNative(function() {}, 'append');
+    el.prepend = makeNative(function() {}, 'prepend');
+    el.replaceWith = makeNative(function() {}, 'replaceWith');
+    el.replaceChildren = makeNative(function() {}, 'replaceChildren');
+    el.toggleAttribute = makeNative(function(name, force) {
+      var has = el.hasAttribute(name);
+      if (force === undefined) {
+        if (has) { el.removeAttribute(name); return false; }
+        el.setAttribute(name, ''); return true;
+      }
+      if (force) { if (!has) el.setAttribute(name, ''); return true; }
+      if (has) el.removeAttribute(name); return false;
+    }, 'toggleAttribute');
+    el.hasAttributes = makeNative(function() { return Object.keys(el.attributes).length > 0; }, 'hasAttributes');
+    el.getAttributeNames = makeNative(function() { return Object.keys(el.attributes); }, 'getAttributeNames');
     return el;
   }
 
@@ -659,10 +1183,24 @@ function install(sandbox, config = {}) {
     baseURI: baseUrl,
     domain: cfg.domain || '',
     referrer: cfg.referrer || '',
+    location: sandbox.location || null,
     // 状态
     readyState: cfg.readyState || 'complete',
     hidden: false,
     visibilityState: 'visible',
+    onvisibilitychange: null,
+    onreadystatechange: null,
+    // Pointer lock
+    pointerLockElement: null,
+    exitPointerLock: makeNative(function exitPointerLock() {}, 'exitPointerLock'),
+    // Fullscreen
+    fullscreenElement: null,
+    fullscreenEnabled: true,
+    exitFullscreen: makeNative(function exitFullscreen() { return Promise.resolve(); }, 'exitFullscreen'),
+    // Picture in picture
+    pictureInPictureElement: null,
+    pictureInPictureEnabled: false,
+    exitPictureInPicture: makeNative(function exitPictureInPicture() { return Promise.resolve(); }, 'exitPictureInPicture'),
     // 编码
     characterSet: 'UTF-8',
     charset: 'UTF-8',
@@ -747,12 +1285,14 @@ function install(sandbox, config = {}) {
     }, 'getElementsByClassName'),
 
     getElementsByTagName: makeNative(function getElementsByTagName(name) {
-      var lower = name.toLowerCase();
+      var lower = String(name).toLowerCase();
       var all = [document.documentElement, document.head, document.body]
         .concat(collectDescendants(document.documentElement));
       var matched = [];
       for (var i = 0; i < all.length; i++) {
-        if (lower === '*' || all[i].tagName.toLowerCase() === lower) matched.push(all[i]);
+        if (!all[i]) continue;
+        var tn = all[i].tagName;
+        if (lower === '*' || (tn && String(tn).toLowerCase() === lower)) matched.push(all[i]);
       }
       return new HTMLCollection(matched);
     }, 'getElementsByTagName'),
@@ -818,12 +1358,33 @@ function install(sandbox, config = {}) {
     compareDocumentPosition: makeNative(function(node) { return 0; }, 'compareDocumentPosition')
   };
 
-  // ── cookie 属性描述符 ──
-  // 浏览器中 cookie 是 HTMLDocument.prototype 上的访问器属性，不可枚举
+  document._cookies = {};
+
+  function updateCookieString() {
+    const pairs = [];
+    for (const [name, value] of Object.entries(document._cookies)) {
+      pairs.push(name + '=' + value);
+    }
+    document._cookie = pairs.join('; ');
+  }
+
   Object.defineProperty(document, 'cookie', {
     get: makeNative(function() { return document._cookie; }, 'get cookie'),
-    set: makeNative(function(v) { document._cookie = String(v); }, 'set cookie'),
-    configurable: false,
+    set: makeNative(function(v) {
+      const cookieStr = String(v);
+      const parts = cookieStr.split(';');
+      const nameValue = parts[0].trim();
+      const eqIndex = nameValue.indexOf('=');
+      if (eqIndex !== -1) {
+        const name = nameValue.substring(0, eqIndex).trim();
+        const value = nameValue.substring(eqIndex + 1).trim();
+        if (name) {
+          document._cookies[name] = value;
+          updateCookieString();
+        }
+      }
+    }, 'set cookie'),
+    configurable: true,
     enumerable: false
   });
 
@@ -913,6 +1474,79 @@ function install(sandbox, config = {}) {
   sandbox.HTMLCanvasElement = HTMLCanvasElement;
   sandbox.HTMLImageElement = HTMLImageElement;
   sandbox.HTMLAudioElement = HTMLAudioElement;
+  sandbox.HTMLVideoElement = HTMLVideoElement;
+  sandbox.HTMLIFrameElement = HTMLIFrameElement;
+  sandbox.HTMLInputElement = HTMLInputElement;
+  sandbox.HTMLFormElement = HTMLFormElement;
+  sandbox.HTMLTextAreaElement = HTMLTextAreaElement;
+  sandbox.HTMLSelectElement = HTMLSelectElement;
+  sandbox.HTMLOptionElement = HTMLOptionElement;
+  sandbox.HTMLButtonElement = HTMLButtonElement;
+  sandbox.HTMLTableElement = HTMLTableElement;
+  sandbox.HTMLTableRowElement = HTMLTableRowElement;
+  sandbox.HTMLTableCellElement = HTMLTableCellElement;
+  sandbox.HTMLSpanElement = HTMLSpanElement;
+  sandbox.HTMLLinkElement = HTMLLinkElement;
+  sandbox.HTMLMetaElement = HTMLMetaElement;
+  sandbox.HTMLParagraphElement = HTMLParagraphElement;
+  sandbox.HTMLHeadingElement = HTMLHeadingElement;
+  sandbox.HTMLUnorderedListElement = HTMLUnorderedListElement;
+  sandbox.HTMLOListElement = HTMLOListElement;
+  sandbox.HTMLLIElement = HTMLLIElement;
+  sandbox.HTMLDListElement = HTMLDListElement;
+  sandbox.HTMLQuoteElement = HTMLQuoteElement;
+  sandbox.HTMLPreElement = HTMLPreElement;
+  sandbox.HTMLHRElement = HTMLHRElement;
+  sandbox.HTMLBRElement = HTMLBRElement;
+  sandbox.HTMLBaseElement = HTMLBaseElement;
+  sandbox.HTMLParamElement = HTMLParamElement;
+  sandbox.HTMLAppletElement = HTMLAppletElement;
+  sandbox.HTMLFrameElement = HTMLFrameElement;
+  sandbox.HTMLFrameSetElement = HTMLFrameSetElement;
+  sandbox.HTMLMarqueeElement = HTMLMarqueeElement;
+  sandbox.HTMLUnknownElement = HTMLUnknownElement;
+  sandbox.HTMLDetailsElement = HTMLDetailsElement;
+  sandbox.HTMLDialogElement = HTMLDialogElement;
+  sandbox.HTMLSlotElement = HTMLSlotElement;
+  sandbox.HTMLTemplateElement = HTMLTemplateElement;
+  sandbox.HTMLShadowRoot = HTMLShadowRoot;
+  sandbox.HTMLPictureElement = HTMLPictureElement;
+  sandbox.HTMLSourceElement = HTMLSourceElement;
+  sandbox.HTMLTrackElement = HTMLTrackElement;
+  sandbox.HTMLMediaElement = HTMLMediaElement;
+  sandbox.HTMLFormControlsCollection = HTMLFormControlsCollection;
+  sandbox.HTMLFieldSetElement = HTMLFieldSetElement;
+  sandbox.HTMLLegendElement = HTMLLegendElement;
+  sandbox.HTMLLabelElement = HTMLLabelElement;
+  sandbox.HTMLMeterElement = HTMLMeterElement;
+  sandbox.HTMLProgressElement = HTMLProgressElement;
+  sandbox.HTMLDataElement = HTMLDataElement;
+  sandbox.HTMLTimeElement = HTMLTimeElement;
+  sandbox.HTMLRubyElement = HTMLRubyElement;
+  sandbox.HTMLRTElement = HTMLRTElement;
+  sandbox.HTMLRPElement = HTMLRPElement;
+  sandbox.HTMLBDOElement = HTMLBDOElement;
+  sandbox.HTMLCiteElement = HTMLCiteElement;
+  sandbox.HTMLDFNElement = HTMLDFNElement;
+  sandbox.HTMLVarElement = HTMLVarElement;
+  sandbox.HTMLKbdElement = HTMLKbdElement;
+  sandbox.HTMLSampElement = HTMLSampElement;
+  sandbox.HTMLCodeElement = HTMLCodeElement;
+  sandbox.HTMLElementElement = HTMLElementElement;
+  sandbox.HTMLArticleElement = HTMLArticleElement;
+  sandbox.HTMLAsideElement = HTMLAsideElement;
+  sandbox.HTMLFooterElement = HTMLFooterElement;
+  sandbox.HTMLHeaderElement = HTMLHeaderElement;
+  sandbox.HTMLHGroupElement = HTMLHGroupElement;
+  sandbox.HTMLMainElement = HTMLMainElement;
+  sandbox.HTMLNavElement = HTMLNavElement;
+  sandbox.HTMLSectionElement = HTMLSectionElement;
+  sandbox.HTMLSummaryElement = HTMLSummaryElement;
+  sandbox.HTMLMenuElement = HTMLMenuElement;
+  sandbox.HTMLMenuItemElement = HTMLMenuItemElement;
+  sandbox.HTMLDirectoryElement = HTMLDirectoryElement;
+  sandbox.HTMLSearchElement = HTMLSearchElement;
+  sandbox.HTMLSlotable = HTMLSlotable;
   sandbox.Image = Image;
   sandbox.Comment = Comment;
   sandbox.DOMTokenList = DOMTokenList;
@@ -920,10 +1554,31 @@ function install(sandbox, config = {}) {
   sandbox.HTMLCollection = HTMLCollection;
   sandbox.HTMLAllCollection = HTMLAllCollection;
 
-  // 确保 DOM 构造函数的 prototype.constructor 不可枚举
-  [Node, Element, HTMLElement, HTMLHtmlElement, HTMLHeadElement,
+  var allCtors = [
+    Node, Element, HTMLElement, HTMLHtmlElement, HTMLHeadElement,
     HTMLBodyElement, HTMLScriptElement, HTMLStyleElement, HTMLDivElement,
-    HTMLAnchorElement, HTMLCanvasElement, HTMLImageElement, HTMLAudioElement, Comment, HTMLAllCollection].forEach(function(ctor) {
+    HTMLAnchorElement, HTMLCanvasElement, HTMLImageElement, HTMLAudioElement,
+    HTMLVideoElement, HTMLIFrameElement, HTMLInputElement, HTMLFormElement,
+    HTMLTextAreaElement, HTMLSelectElement, HTMLOptionElement, HTMLButtonElement,
+    HTMLTableElement, HTMLTableRowElement, HTMLTableCellElement, HTMLSpanElement,
+    HTMLLinkElement, HTMLMetaElement, HTMLParagraphElement, HTMLHeadingElement,
+    HTMLUnorderedListElement, HTMLOListElement, HTMLLIElement, HTMLDListElement,
+    HTMLQuoteElement, HTMLPreElement, HTMLHRElement, HTMLBRElement,
+    HTMLBaseElement, HTMLParamElement, HTMLAppletElement, HTMLFrameElement,
+    HTMLFrameSetElement, HTMLMarqueeElement, HTMLUnknownElement,
+    HTMLDetailsElement, HTMLDialogElement, HTMLSlotElement, HTMLTemplateElement,
+    HTMLShadowRoot, HTMLPictureElement, HTMLSourceElement, HTMLTrackElement,
+    HTMLMediaElement, HTMLFormControlsCollection, HTMLFieldSetElement,
+    HTMLLegendElement, HTMLLabelElement, HTMLMeterElement, HTMLProgressElement,
+    HTMLDataElement, HTMLTimeElement, HTMLRubyElement, HTMLRTElement,
+    HTMLRPElement, HTMLBDOElement, HTMLCiteElement, HTMLDFNElement,
+    HTMLVarElement, HTMLKbdElement, HTMLSampElement, HTMLCodeElement,
+    HTMLElementElement, HTMLArticleElement, HTMLAsideElement, HTMLFooterElement,
+    HTMLHeaderElement, HTMLHGroupElement, HTMLMainElement, HTMLNavElement,
+    HTMLSectionElement, HTMLSummaryElement, HTMLMenuElement, HTMLMenuItemElement,
+    HTMLDirectoryElement, HTMLSearchElement, HTMLSlotable, Comment, HTMLAllCollection
+  ];
+  allCtors.forEach(function(ctor) {
     Object.defineProperty(ctor.prototype, 'constructor', {
       value: ctor,
       writable: true,
@@ -934,6 +1589,38 @@ function install(sandbox, config = {}) {
 
   sandbox.document = document;
   Object.setPrototypeOf(document, sandbox.Document.prototype);
+
+  Object.defineProperty(document, Symbol.toStringTag, {
+    value: 'HTMLDocument',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  // FontFaceSet (document.fonts) — Chrome 35+
+  const fonts = {
+    status: 'loaded',
+    onloading: null,
+    onloadingdone: null,
+    onloadingerror: null,
+    check: makeNative(function check(font, text) { return true; }, 'check'),
+    load: makeNative(function load(font, text) { return Promise.resolve([]); }, 'load'),
+    add: makeNative(function add(fontFace) {}, 'add'),
+    delete: makeNative(function delete_(fontFace) {}, 'delete'),
+    clear: makeNative(function clear() {}, 'clear'),
+    forEach: makeNative(function forEach(callback) {}, 'forEach'),
+    addEventListener: makeNative(function(type, cb, opts) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb, opts) {}, 'removeEventListener'),
+    dispatchEvent: makeNative(function(event) { return true; }, 'dispatchEvent')
+  };
+  fonts.ready = Promise.resolve(fonts);
+  Object.defineProperty(fonts, Symbol.toStringTag, { value: 'FontFaceSet', writable: false, configurable: true, enumerable: false });
+  Object.defineProperty(document, 'fonts', {
+    value: fonts,
+    writable: false,
+    configurable: true,
+    enumerable: true
+  });
 }
 
 module.exports = { install };

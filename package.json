@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/DreamXiaoJing/browser-env#readme",
   "dependencies": {
+    "canvas": "^3.2.3",
     "node-tls-client": "^2.1.0"
   }
 }

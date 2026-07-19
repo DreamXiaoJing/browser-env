@@ -179,6 +179,38 @@ function install(sandbox, config = {}) {
   makeNative(FocusEvent, 'FocusEvent');
   Object.setPrototypeOf(FocusEvent.prototype, UIEvent.prototype);
 
+  // ── EventTarget ──
+  function EventTarget() {}
+  makeNative(EventTarget, 'EventTarget');
+
+  EventTarget.prototype.addEventListener = makeNative(function(type, callback, options) {
+    if (!this._listeners) this._listeners = {};
+    if (!this._listeners[type]) this._listeners[type] = [];
+    if (!this._listeners[type].includes(callback)) this._listeners[type].push(callback);
+  }, 'addEventListener');
+
+  EventTarget.prototype.removeEventListener = makeNative(function(type, callback, options) {
+    if (!this._listeners || !this._listeners[type]) return;
+    this._listeners[type] = this._listeners[type].filter(cb => cb !== callback);
+  }, 'removeEventListener');
+
+  EventTarget.prototype.dispatchEvent = makeNative(function(event) {
+    event.target = this;
+    event.currentTarget = this;
+    if (this._listeners && this._listeners[event.type]) {
+      const list = this._listeners[event.type].slice();
+      for (const cb of list) {
+        if (event._immediatePropagationStopped) break;
+        cb.call(this, event);
+      }
+    }
+    const handlerKey = 'on' + event.type;
+    if (typeof this[handlerKey] === 'function') {
+      this[handlerKey].call(this, event);
+    }
+    return !event.defaultPrevented;
+  }, 'dispatchEvent');
+
   // ── 安装 ──
   sandbox.Event = Event;
   sandbox.CustomEvent = CustomEvent;
@@ -190,6 +222,7 @@ function install(sandbox, config = {}) {
   sandbox.TouchEvent = TouchEvent;
   sandbox.Touch = Touch;
   sandbox.FocusEvent = FocusEvent;
+  sandbox.EventTarget = EventTarget;
 }
 
 module.exports = { install };
