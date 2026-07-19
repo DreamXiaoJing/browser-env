@@ -1360,6 +1360,21 @@ function install(sandbox, config = {}) {
 
   document._cookies = {};
 
+  // 将初始 cookie 字符串解析到 _cookies，避免后续 updateCookieString 时丢失
+  if (cfg.cookie) {
+    const initParts = String(cfg.cookie).split(';');
+    for (var i = 0; i < initParts.length; i++) {
+      var p = initParts[i].trim();
+      if (!p) continue;
+      var eq = p.indexOf('=');
+      if (eq !== -1) {
+        var k = p.substring(0, eq).trim();
+        var vv = p.substring(eq + 1).trim();
+        if (k) document._cookies[k] = vv;
+      }
+    }
+  }
+
   function updateCookieString() {
     const pairs = [];
     for (const [name, value] of Object.entries(document._cookies)) {
@@ -1367,6 +1382,7 @@ function install(sandbox, config = {}) {
     }
     document._cookie = pairs.join('; ');
   }
+  updateCookieString();
 
   Object.defineProperty(document, 'cookie', {
     get: makeNative(function() { return document._cookie; }, 'get cookie'),
@@ -1375,14 +1391,38 @@ function install(sandbox, config = {}) {
       const parts = cookieStr.split(';');
       const nameValue = parts[0].trim();
       const eqIndex = nameValue.indexOf('=');
-      if (eqIndex !== -1) {
-        const name = nameValue.substring(0, eqIndex).trim();
-        const value = nameValue.substring(eqIndex + 1).trim();
-        if (name) {
-          document._cookies[name] = value;
-          updateCookieString();
+      if (eqIndex === -1) return;
+      const name = nameValue.substring(0, eqIndex).trim();
+      if (!name) return;
+      const value = nameValue.substring(eqIndex + 1).trim();
+
+      // 解析 expires / max-age 属性以决定是否删除 cookie
+      var shouldDelete = false;
+      for (var i = 1; i < parts.length; i++) {
+        var attr = parts[i].trim();
+        var colonIdx = attr.indexOf('=');
+        if (colonIdx === -1) continue;
+        var attrName = attr.substring(0, colonIdx).trim().toLowerCase();
+        var attrValue = attr.substring(colonIdx + 1).trim();
+        if (attrName === 'expires') {
+          var expires = new Date(attrValue);
+          if (!isNaN(expires.getTime()) && expires.getTime() <= Date.now()) {
+            shouldDelete = true;
+          }
+        } else if (attrName === 'max-age') {
+          var sec = parseInt(attrValue, 10);
+          if (!isNaN(sec) && sec <= 0) {
+            shouldDelete = true;
+          }
         }
       }
+
+      if (shouldDelete) {
+        delete document._cookies[name];
+      } else {
+        document._cookies[name] = value;
+      }
+      updateCookieString();
     }, 'set cookie'),
     configurable: true,
     enumerable: false

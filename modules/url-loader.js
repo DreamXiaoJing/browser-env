@@ -5,46 +5,112 @@ const nodeUrl = require('url');
 const vm = require('vm');
 const nodeHttp = require('http');
 const nodeHttps = require('https');
+const zlib = require('zlib');
+
+/**
+ * 根据 Content-Encoding 解压响应体
+ * 支持 gzip / deflate / br
+ */
+function decodeBody(buffer, encoding) {
+  if (!encoding) return Promise.resolve(buffer);
+  const enc = String(encoding).toLowerCase().trim();
+  return new Promise((resolve, reject) => {
+    if (enc === 'gzip') {
+      zlib.gunzip(buffer, (err, decoded) => err ? reject(err) : resolve(decoded));
+    } else if (enc === 'deflate') {
+      zlib.inflate(buffer, (err, decoded) => {
+        if (err) {
+          // 部分 raw deflate 没有 zlib 头，回退到 deflateRaw
+          zlib.deflateRaw(buffer, (e2, d2) => e2 ? reject(e2) : resolve(d2));
+        } else {
+          resolve(decoded);
+        }
+      });
+    } else if (enc === 'br') {
+      zlib.brotliDecompress(buffer, (err, decoded) => err ? reject(err) : resolve(decoded));
+    } else {
+      resolve(buffer);
+    }
+  });
+}
 
 function httpGet(url, options = {}) {
   return new Promise((resolve, reject) => {
     const parsed = nodeUrl.parse(url);
     const isHttps = parsed.protocol === 'https:';
     const transport = isHttps ? nodeHttps : nodeHttp;
-    
+
+    // 合并请求头：默认带 Accept-Encoding 让服务器返回压缩内容，
+    // 用户传入的 headers 优先（大小写不敏感合并）
+    const defaultHeaders = {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    };
+    const userHeaders = options.headers || {};
+    const mergedHeaders = {};
+    // 先放默认
+    Object.keys(defaultHeaders).forEach(k => { mergedHeaders[k] = defaultHeaders[k]; });
+    // 用户覆盖（大小写不敏感合并，避免重复头）
+    Object.keys(userHeaders).forEach(k => {
+      const kl = String(k).toLowerCase();
+      Object.keys(mergedHeaders).forEach(mk => {
+        if (String(mk).toLowerCase() === kl) delete mergedHeaders[mk];
+      });
+      mergedHeaders[k] = userHeaders[k];
+    });
+
     const reqOptions = {
       hostname: parsed.hostname,
       port: parsed.port || (isHttps ? 443 : 80),
       path: parsed.path || '/',
       method: options.method || 'GET',
-      headers: options.headers || {},
+      headers: mergedHeaders,
       rejectUnauthorized: false
     };
-    
+
     const req = transport.request(reqOptions, (res) => {
       const chunks = [];
       res.on('data', chunk => {
         chunks.push(chunk);
       });
       res.on('end', () => {
-        const body = Buffer.concat(chunks);
-        
+        const raw = Buffer.concat(chunks);
+        const encoding = res.headers['content-encoding'];
+
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           httpGet(nodeUrl.resolve(url, res.headers.location), options).then(resolve).catch(reject);
-        } else {
-          resolve({
-            status: res.statusCode,
-            headers: res.headers,
-            text: () => Promise.resolve(body.toString('utf-8')),
-            ok: res.statusCode >= 200 && res.statusCode < 300,
-            body: body
-          });
+          return;
         }
+
+        decodeBody(raw, encoding)
+          .then(decoded => {
+            resolve({
+              status: res.statusCode,
+              headers: res.headers,
+              text: () => Promise.resolve(decoded.toString('utf-8')),
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              body: decoded
+            });
+          })
+          .catch(err => {
+            // 解压失败：返回原始 buffer，避免阻塞流程
+            resolve({
+              status: res.statusCode,
+              headers: res.headers,
+              text: () => Promise.resolve(raw.toString('utf-8')),
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              body: raw,
+              __decodeError: err.message
+            });
+          });
       });
     });
-    
+
     req.on('error', reject);
-    
+
     if (options.body) {
       req.write(options.body);
     }

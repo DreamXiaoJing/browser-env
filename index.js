@@ -90,7 +90,10 @@ class BrowserEnv {
 
     // 4. 安装抗检测全局保护
     protectGlobalFunctionToString(this.sandbox);
-    protectErrorStack(this.sandbox);
+    // 从 location 配置派生 baseURL，用于伪装 Error 堆栈中的脚本 URL
+    const locCfg = this.config.location || {};
+    const stackBaseURL = locCfg.href || locCfg.origin || locCfg.baseURL;
+    protectErrorStack(this.sandbox, { baseURL: stackBaseURL });
 
     // 5. 可选启用追踪观察器
     if (this._proxyEnabled) {
@@ -178,27 +181,43 @@ class BrowserEnv {
     
     if (typeof code === 'string') {
       let resolvedPath = path.resolve(code);
-      
-      if (!fs.existsSync(resolvedPath) && code.startsWith('./') || code.startsWith('../')) {
+
+      // 判断是否像文件路径（而非代码片段）：
+      // - 显式相对路径 ./ ../
+      // - 或单行字符串，且以 .js/.mjs/.cjs 结尾，无换行/分号/大括号等代码特征
+      const looksLikeFilePath =
+        code.startsWith('./') ||
+        code.startsWith('../') ||
+        (/^\S+$/.test(code) && /\.(js|mjs|cjs)$/i.test(code) && !/[;{}]/.test(code));
+
+      // 相对路径或裸文件名：文件不存在时，尝试基于调用者位置解析
+      if (!fs.existsSync(resolvedPath) && looksLikeFilePath) {
         const callers = (new Error()).stack.split('\n');
         let callerPath = '';
         for (const line of callers) {
-          if (line.includes('at Object.') && !line.includes('runInContext')) {
-            const match = line.match(/\(([^)]+)\)/);
-            if (match) {
-              callerPath = match[1];
+          // 跳过本文件 (run/runInContext) 与 Node 内部帧
+          if (line.includes('runInContext')) continue;
+          if (line.includes('index.js')) continue;
+          if (line.includes('node:internal')) continue;
+          // 匹配 "at ... (file:line:col)" 或 "at file:line:col"
+          const match = line.match(/\(([^)\s]+):\d+:\d+\)/) || line.match(/at\s+([^\s(]+):\d+:\d+/);
+          if (match) {
+            const candidate = match[1] || match[0].replace(/^at\s+/, '');
+            // 仅接受绝对路径（Windows 盘符或 POSIX 根）
+            if (candidate && /^[A-Za-z]:[\\/]/.test(candidate) || candidate && candidate.startsWith('/')) {
+              callerPath = candidate;
               break;
             }
           }
         }
-        
+
         if (callerPath) {
           const callerDir = path.dirname(callerPath);
           resolvedPath = path.resolve(callerDir, code);
         }
       }
-      
-      if (fs.existsSync(resolvedPath)) {
+
+      if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
         sourceCode = fs.readFileSync(resolvedPath, 'utf8');
         sourceFilename = resolvedPath;
       }
