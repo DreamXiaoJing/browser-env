@@ -376,7 +376,11 @@ function install(sandbox, config = {}) {
   sandbox.cancelAnimationFrame = cancelAnimationFrame;
 
   sandbox.visualViewport = visualViewport;
-  sandbox.screen = screen;
+  // 仅当 screen 模块未加载时才使用 window 模块的 fallback screen
+  // screen.js 模块提供更完整的 Screen.prototype 实现（属性都在原型上）
+  if (!sandbox.screen) {
+    sandbox.screen = screen;
+  }
   sandbox.history = history;
   sandbox.localStorage = localStorage;
   sandbox.sessionStorage = sessionStorage;

@@ -150,14 +150,51 @@ function install(sandbox, config = {}) {
 
   location.toString = makeNative(function toString() { return href; }, 'toString');
 
+  // valueOf - 真实浏览器中存在，返回 href
+  location.valueOf = makeNative(function valueOf() { return href; }, 'valueOf');
+
+  // ancestorOrigins - DOMStringList-like 对象（真实浏览器中是 [LegacyUnforgeable] getter）
+  // 在补环境中返回空列表（无父框架）
+  const ancestorOrigins = {
+    length: 0,
+    item: makeNative(function item(index) { return null; }, 'item'),
+    contains: makeNative(function contains(origin) { return false; }, 'contains')
+  };
+  Object.defineProperty(ancestorOrigins, Symbol.toStringTag, {
+    value: 'DOMStringList',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+  Object.defineProperty(location, 'ancestorOrigins', {
+    get: makeNative(function() { return ancestorOrigins; }, 'get ancestorOrigins'),
+    set: undefined,
+    configurable: false,
+    enumerable: true
+  });
+
   // Symbol.toPrimitive
   location[Symbol.toPrimitive] = makeNative(function(hint) {
     return href;
   }, '[Symbol.toPrimitive]');
 
+  // Symbol.toStringTag - 真实浏览器中定义在 location 实例上
+  Object.defineProperty(location, Symbol.toStringTag, {
+    value: 'Location',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
   // 安装
   sandbox.Location = function Location() {}; // 不可直接构造
   makeNative(sandbox.Location, 'Location');
+  Object.defineProperty(sandbox.Location.prototype, Symbol.toStringTag, {
+    value: 'Location',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
   sandbox.location = location;
   sandbox.document = sandbox.document || {};
   sandbox.document.location = location;

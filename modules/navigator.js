@@ -50,15 +50,9 @@ function install(sandbox, config = {}) {
     deviceMemory: cfg.deviceMemory || (isMobile ? 4 : 8),
     maxTouchPoints: cfg.maxTouchPoints || (isMobile ? 5 : 0),
     doNotTrack: null,
-    mimeTypesLength: 0,
-    pluginsLength: 0,
 
     // Java
-    javaEnabled: makeNative(function javaEnabled() { return false; }, 'javaEnabled'),
-
-    // 已废弃但必须存在
-    taintEnabled: makeNative(function taintEnabled() { return false; }, 'taintEnabled'),
-    preference: makeNative(function preference() {}, 'preference')
+    javaEnabled: makeNative(function javaEnabled() { return false; }, 'javaEnabled')
   };
 
   // ── Plugins ──
@@ -140,57 +134,68 @@ function install(sandbox, config = {}) {
   const plugins = new PluginArray();
   const mimeTypes = new MimeTypeArray();
 
-  // Chrome 131 典型插件
-  const defaultPlugins = cfg.plugins || [
-    {
-      name: 'Chrome PDF Plugin',
-      description: 'Portable Document Format',
-      filename: 'internal-pdf-viewer',
-      mimeTypes: [
-        { type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format' },
-        { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' },
-        { type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable' }
-      ]
-    },
-    {
-      name: 'Chrome PDF Viewer',
-      description: '',
-      filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
-      mimeTypes: [
-        { type: 'application/pdf', suffixes: 'pdf', description: '' }
-      ]
-    },
-    {
-      name: 'Native Client',
-      description: '',
-      filename: 'internal-nacl-plugin',
-      mimeTypes: [
-        { type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable' },
-        { type: 'application/x-pnacl', suffixes: '', description: 'Portable Native Client Executable' }
-      ]
-    }
+  // Chrome 131/150 典型插件（实测：5 个 PDF 相关插件，共享 internal-pdf-viewer）
+  // 注意：真实浏览器中所有 PDF 插件都使用相同的 filename 'internal-pdf-viewer'
+  // 每个 Plugin 包含 2 个 MimeType: application/pdf 和 text/pdf
+  const PDF_MIME_TYPES = [
+    { type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format' },
+    { type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format' }
   ];
+  const defaultPluginNames = cfg.pluginNames || [
+    'PDF Viewer',
+    'Chrome PDF Viewer',
+    'Chromium PDF Viewer',
+    'Microsoft Edge PDF Viewer',
+    'WebKit built-in PDF'
+  ];
+  const defaultPlugins = cfg.plugins || defaultPluginNames.map(name => ({
+    name,
+    description: 'Portable Document Format',
+    filename: 'internal-pdf-viewer',
+    mimeTypes: PDF_MIME_TYPES
+  }));
+
+  // 真实浏览器行为（实测 Chrome 150）：
+  // - mimeTypes 数组去重（5 个 PDF 插件共享 2 个 mimeType: application/pdf, text/pdf）
+  // - 每个 Plugin 都包含完整的 2 个 mimeTypes（length=2）
+  // - 所有 mimeTypes 的 enabledPlugin 指向第一个 Plugin ("PDF Viewer")
+  // - 所有 Plugin 的 filename 都是 'internal-pdf-viewer'
+  let firstPlugin = null;
+  // 跟踪已添加的 mimeType 类型，避免在 mimeTypes 数组中重复
+  const addedMimeTypeTypes = new Set();
+  // 所有插件共享同一组 MimeType 实例（enabledPlugin 都指向第一个插件）
+  const sharedMimeTypes = [];
+
+  for (const mtData of PDF_MIME_TYPES) {
+    const mt = new MimeType();
+    mt.type = mtData.type;
+    mt.suffixes = mtData.suffixes;
+    mt.description = mtData.description;
+    // enabledPlugin 稍后设置（指向第一个 plugin）
+    sharedMimeTypes.push(mt);
+    addedMimeTypeTypes.add(mtData.type);
+    // 加入 mimeTypes 数组（仅一次）
+    mimeTypes[mtData.type] = mt;
+    mimeTypes[mimeTypes.length++] = mt;
+  }
 
   for (const pData of defaultPlugins) {
     const plugin = new Plugin();
     plugin.name = pData.name;
     plugin.description = pData.description;
     plugin.filename = pData.filename;
-    const types = [];
-    for (const mtData of pData.mimeTypes) {
-      const mt = new MimeType();
-      mt.type = mtData.type;
-      mt.suffixes = mtData.suffixes;
-      mt.description = mtData.description;
-      mt.enabledPlugin = plugin;
-      types.push(mt);
-      mimeTypes[mtData.type] = mt;
-      mimeTypes[mimeTypes.length++] = mt;
+    // 每个 Plugin 都包含所有共享的 mimeTypes
+    plugin.length = sharedMimeTypes.length;
+    for (let i = 0; i < sharedMimeTypes.length; i++) {
+      plugin[i] = sharedMimeTypes[i];
+      plugin[sharedMimeTypes[i].type] = sharedMimeTypes[i];
     }
-    plugin.length = types.length;
-    for (let i = 0; i < types.length; i++) {
-      plugin[i] = types[i];
-      plugin[types[i].type] = types[i];
+    if (!firstPlugin) {
+      firstPlugin = plugin;
+      // 设置所有 mimeTypes 的 enabledPlugin 指向第一个 plugin
+      for (const mt of sharedMimeTypes) {
+        mt.enabledPlugin = plugin;
+      }
     }
     plugins[plugin.name] = plugin;
     plugins[plugins.length++] = plugin;
@@ -198,10 +203,11 @@ function install(sandbox, config = {}) {
 
   navigator.plugins = plugins;
   navigator.mimeTypes = mimeTypes;
-  navigator.pluginsLength = plugins.length;
-  navigator.mimeTypesLength = mimeTypes.length;
 
   // ── userAgentData（可选，Chrome 89+）──
+  // 真实浏览器中 userAgentData 只暴露 brands/mobile/platform + 方法
+  // architecture/bitness/model/platformVersion/wow64/uaFullVersion/fullVersionList
+  // 只能通过 getHighEntropyValues() 异步获取
   if (cfg.userAgentData !== false) {
     const uaHints = cfg.userAgentData || {
       brands: [
@@ -210,42 +216,39 @@ function install(sandbox, config = {}) {
         { brand: 'Not_A Brand', version: '24' }
       ],
       mobile: isMobile,
-      platform: isiPhone || isiPad ? 'iOS' : isAndroid ? 'Android' : 'Windows',
+      platform: isiPhone || isiPad ? 'iOS' : isAndroid ? 'Android' : 'Windows'
+    };
+
+    // 高熵值数据（仅通过 getHighEntropyValues 返回）
+    const highEntropyData = {
       architecture: isMobile ? 'arm64' : 'x86_64',
-      bitness: isMobile ? '64' : '64',
+      bitness: '64',
       model: isiPhone ? 'iPhone' : isiPad ? 'iPad' : '',
       platformVersion: isiPhone || isiPad ? '16.6.0' : isAndroid ? '13.0.0' : '15.0.0',
       wow64: !isMobile,
-      fullVersion: '131.0.6778.109',
-      uaFullVersion: '131.0.6778.109'
+      uaFullVersion: '131.0.6778.109',
+      fullVersionList: uaHints.brands
     };
 
-    // UAData 对象
+    // UAData 对象 - 仅 brands/mobile/platform 为直接属性（匹配真实浏览器）
     const uaData = {
       brands: uaHints.brands,
       mobile: uaHints.mobile,
       platform: uaHints.platform,
-      architecture: uaHints.architecture,
-      bitness: uaHints.bitness,
-      model: uaHints.model,
-      platformVersion: uaHints.platformVersion,
-      wow64: uaHints.wow64,
-      fullVersionList: uaHints.brands,
       getHighEntropyValues: makeNative(function getHighEntropyValues(hints) {
         const result = {
-          architecture: uaHints.architecture,
-          bitness: uaHints.bitness,
-          model: uaHints.model,
-          platformVersion: uaHints.platformVersion,
-          uaFullVersion: uaHints.uaFullVersion || uaHints.fullVersion,
-          fullVersionList: uaHints.brands,
-          wow64: uaHints.wow64,
           brands: uaHints.brands,
           mobile: uaHints.mobile,
           platform: uaHints.platform
         };
-        if (hints.includes('locale')) {
-          result.locale = 'zh-CN';
+        if (hints && hints.includes) {
+          if (hints.includes('architecture')) result.architecture = highEntropyData.architecture;
+          if (hints.includes('bitness')) result.bitness = highEntropyData.bitness;
+          if (hints.includes('model')) result.model = highEntropyData.model;
+          if (hints.includes('platformVersion')) result.platformVersion = highEntropyData.platformVersion;
+          if (hints.includes('wow64')) result.wow64 = highEntropyData.wow64;
+          if (hints.includes('uaFullVersion')) result.uaFullVersion = highEntropyData.uaFullVersion;
+          if (hints.includes('fullVersionList')) result.fullVersionList = highEntropyData.fullVersionList;
         }
         return Promise.resolve(result);
       }, 'getHighEntropyValues'),
@@ -255,18 +258,24 @@ function install(sandbox, config = {}) {
     };
 
     navigator.userAgentData = uaData;
+    Object.defineProperty(uaData, Symbol.toStringTag, {
+      value: 'NavigatorUAData',
+      writable: false,
+      configurable: true,
+      enumerable: false
+    });
   }
 
   // ── Connection（navigator.connection）──
+  // 真实浏览器中 NetworkInformation 只有：effectiveType, rtt, downlink, saveData, onchange
+  // 不包含 type 和 downlinkMax（已废弃/从未在 Chrome 中实现）
   if (cfg.connection !== false) {
     const connCfg = cfg.connection || {};
     const connection = {
       effectiveType: connCfg.effectiveType || '4g',
       rtt: connCfg.rtt || 50,
       downlink: connCfg.downlink || 10,
-      downlinkMax: connCfg.downlinkMax || Infinity,
       saveData: connCfg.saveData || false,
-      type: connCfg.type || 'wifi',
       onchange: null,
       addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
       removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener')
@@ -275,20 +284,27 @@ function install(sandbox, config = {}) {
     const connectionProto = { constructor: function NetworkInformation() {} };
     makeNative(connectionProto.constructor, 'NetworkInformation');
     Object.setPrototypeOf(connection, connectionProto);
+    Object.defineProperty(connection, Symbol.toStringTag, {
+      value: 'NetworkInformation',
+      writable: false,
+      configurable: true,
+      enumerable: false
+    });
     navigator.connection = connection;
   }
 
   // ── 其他子对象 ├─
   // mediaCapabilities（Chrome 66+）
+  // 真实浏览器方法：decodingInfo, encodingInfo（不是 query）
   navigator.mediaCapabilities = {
-    query: makeNative(function query(queryConfig) {
+    decodingInfo: makeNative(function decodingInfo(queryConfig) {
       return Promise.resolve({
         supported: true,
         smooth: true,
         powerEfficient: true,
         configuration: queryConfig || {}
       });
-    }, 'query'),
+    }, 'decodingInfo'),
     encodingInfo: makeNative(function encodingInfo(queryConfig) {
       return Promise.resolve({
         supported: true,
@@ -298,6 +314,12 @@ function install(sandbox, config = {}) {
       });
     }, 'encodingInfo')
   };
+  Object.defineProperty(navigator.mediaCapabilities, Symbol.toStringTag, {
+    value: 'MediaCapabilities',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 
   // canShare / share（Chrome 89+，部分平台支持）
   navigator.canShare = makeNative(function canShare(data) {
@@ -572,18 +594,8 @@ function install(sandbox, config = {}) {
     overlaysContent: false
   };
 
-  // Content Index
-  navigator.contentIndex = {
-    add: makeNative(function(description) {
-      return Promise.resolve();
-    }, 'add'),
-    delete: makeNative(function(id) {
-      return Promise.resolve();
-    }, 'delete'),
-    getAll: makeNative(function() {
-      return Promise.resolve([]);
-    }, 'getAll')
-  };
+  // Content Index - 在 Chrome 150 中未在 navigator 上暴露（已移除/从未实现）
+  // 如果需要可手动开启：navigator.contentIndex = { ... }
 
   // Scheduler API (navigator.scheduling)
   navigator.scheduling = {
@@ -627,60 +639,160 @@ function install(sandbox, config = {}) {
     defaultRequest: null,
     receiver: null
   };
+  Object.defineProperty(navigator.presentation, Symbol.toStringTag, {
+    value: 'Presentation',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 
-  // Remote Playback API
-  navigator.remotePlayback = {
-    state: 'disconnected',
-    watchAvailability: makeNative(function(callback) {
-      return Promise.resolve(false);
-    }, 'watchAvailability'),
-    cancelWatchAvailability: makeNative(function(id) {
-      return Promise.resolve();
-    }, 'cancelWatchAvailability'),
-    prompt: makeNative(function() {
-      return Promise.resolve();
-    }, 'prompt')
-  };
+  // Remote Playback API - 在真实 Chrome 中不在 navigator 上（在 HTMLMediaElement 上）
+  // 已移除以匹配真实浏览器
 
   // Managed Configuration API
+  // 真实浏览器：getManagedConfiguration (不是 getManagedConfig), onmanagedconfigurationchange
   navigator.managed = {
-    getManagedConfig: makeNative(function() {
+    getManagedConfiguration: makeNative(function() {
       return Promise.resolve({});
-    }, 'getManagedConfig')
+    }, 'getManagedConfiguration'),
+    onmanagedconfigurationchange: null
   };
+  Object.defineProperty(navigator.managed, Symbol.toStringTag, {
+    value: 'NavigatorManagedData',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 
-  // Window Controls Overlay
-  navigator.windowControlsDOM = undefined;
+  // Window Controls Overlay (真实 Chrome 中为对象，非 undefined)
+  // 注意：navigator.windowControlsDOM 不存在；windowControlsOverlay 才是真实属性
+  navigator.windowControlsOverlay = {
+    visible: false,
+    ongeometrychange: null,
+    getTitlebarAreaRect: makeNative(function getTitlebarAreaRect() {
+      return { x: 0, y: 0, width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 };
+    }, 'getTitlebarAreaRect'),
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener'),
+    dispatchEvent: makeNative(function(event) { return true; }, 'dispatchEvent')
+  };
+  Object.defineProperty(navigator.windowControlsOverlay, Symbol.toStringTag, {
+    value: 'WindowControlsOverlay',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  // ── 新增 API（匹配 Chrome 150）──
+
+  // UserActivation API (navigator.userActivation)
+  navigator.userActivation = {
+    hasBeenActive: true,
+    isActive: true
+  };
+  Object.defineProperty(navigator.userActivation, Symbol.toStringTag, {
+    value: 'UserActivation',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  // Device Posture API (navigator.devicePosture)
+  navigator.devicePosture = {
+    type: 'continuous', // 'continuous' | 'folded'
+    onchange: null,
+    addEventListener: makeNative(function(type, cb) {}, 'addEventListener'),
+    removeEventListener: makeNative(function(type, cb) {}, 'removeEventListener'),
+    dispatchEvent: makeNative(function(event) { return true; }, 'dispatchEvent')
+  };
+  Object.defineProperty(navigator.devicePosture, Symbol.toStringTag, {
+    value: 'DevicePosture',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  // Keyboard API (navigator.keyboard) - Chrome 68+
+  navigator.keyboard = {
+    getLayoutMap: makeNative(function getLayoutMap() {
+      return Promise.resolve(new Map());
+    }, 'getLayoutMap'),
+    lock: makeNative(function lock(keyCodes) {
+      return Promise.resolve();
+    }, 'lock'),
+    unlock: makeNative(function unlock() {}, 'unlock')
+  };
+  Object.defineProperty(navigator.keyboard, Symbol.toStringTag, {
+    value: 'Keyboard',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  // Vibration API (navigator.vibrate) - 真实 Chrome 中存在
+  navigator.vibrate = makeNative(function vibrate(pattern) {
+    return false; // 在桌面/无振动设备上返回 false
+  }, 'vibrate');
+
+  // Badging API (navigator.setAppBadge / clearAppBadge) - Chrome 81+
+  navigator.setAppBadge = makeNative(function setAppBadge(contents) {
+    return Promise.resolve();
+  }, 'setAppBadge');
+  navigator.clearAppBadge = makeNative(function clearAppBadge() {
+    return Promise.resolve();
+  }, 'clearAppBadge');
+
+  // Web MIDI API (navigator.requestMIDIAccess)
+  navigator.requestMIDIAccess = makeNative(function requestMIDIAccess(options) {
+    return Promise.reject(new DOMException('Access to the feature "midi" is not allowed.', 'SecurityError'));
+  }, 'requestMIDIAccess');
+
+  // Encrypted Media Extensions (navigator.requestMediaKeySystemAccess)
+  navigator.requestMediaKeySystemAccess = makeNative(function requestMediaKeySystemAccess(keySystem, supportedConfigurations) {
+    return Promise.reject(new DOMException('EME not available', 'NotSupportedError'));
+  }, 'requestMediaKeySystemAccess');
+
+  // Related Apps API (navigator.getInstalledRelatedApps)
+  navigator.getInstalledRelatedApps = makeNative(function getInstalledRelatedApps() {
+    return Promise.resolve([]);
+  }, 'getInstalledRelatedApps');
+
+  // Storage Buckets API (navigator.storageBuckets) - Chrome 122+
+  navigator.storageBuckets = {
+    open: makeNative(function open(name, options) {
+      return Promise.resolve({});
+    }, 'open'),
+    delete: makeNative(function _delete(name) {
+      return Promise.resolve(true);
+    }, 'delete'),
+    keys: makeNative(function keys() {
+      return Promise.resolve([]);
+    }, 'keys')
+  };
+  Object.defineProperty(navigator.storageBuckets, Symbol.toStringTag, {
+    value: 'StorageBucketManager',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
+
+  // Navigator Login API (navigator.login) - Chrome 122+
+  navigator.login = {
+    setStatus: makeNative(function setStatus(status) {
+      return Promise.resolve();
+    }, 'setStatus')
+  };
+  Object.defineProperty(navigator.login, Symbol.toStringTag, {
+    value: 'NavigatorLogin',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 
   // Deprecated storage APIs (WebKit) - fireyejs.js uses these
-  navigator.queryUsageAndQuota = makeNative(function(callback, errorCallback) {
-    if (typeof callback === 'function') {
-      callback(0, 0);
-    }
-  }, 'queryUsageAndQuota');
-  navigator.requestQuota = makeNative(function(type, size, callback, errorCallback) {
-    if (typeof callback === 'function') {
-      callback(size);
-    }
-  }, 'requestQuota');
-
-  // User Agent Client Hints API (high entropy values)
-  if (navigator.userAgentData) {
-    navigator.userAgentData.getHighEntropyValues = makeNative(function(hints) {
-      return Promise.resolve({
-        architecture: 'x86',
-        bitness: '64',
-        brands: navigator.userAgentData.brands || [],
-        fullVersionList: navigator.userAgentData.brands || [],
-        mobile: false,
-        model: '',
-        platform: 'Windows',
-        platformVersion: '15.0.0',
-        uaFullVersion: '131.0.0.0',
-        wow64: false
-      });
-    }, 'getHighEntropyValues');
-  }
+  // 注意：真实 Chrome 中 queryUsageAndQuota/requestQuota 仅在
+  // navigator.webkitTemporaryStorage 和 navigator.webkitPersistentStorage 上
+  // 不在 navigator 本身上
 
   // ── 安装到 sandbox ──
   sandbox.Navigator = Navigator;
@@ -697,7 +809,59 @@ function install(sandbox, config = {}) {
     enumerable: false
   });
 
-  Object.defineProperty(navigator, Symbol.toStringTag, {
+  // ── 关键：将 navigator 实例上的所有 own 属性迁移到 Navigator.prototype 上作为 getter
+  // 真实浏览器中 navigator 实例没有任何 own 属性，所有属性都在 Navigator.prototype 上
+  // 这是反指纹检测的关键点：Object.getOwnPropertyNames(navigator) === []
+  (function migrateToPrototype() {
+    const ownProps = Object.getOwnPropertyNames(navigator);
+    const ownSymbols = Object.getOwnPropertySymbols(navigator);
+
+    // 跳过这些属性（不应迁移到原型）
+    const skipKeys = new Set(['constructor']);
+
+    for (const key of ownProps) {
+      if (skipKeys.has(key)) continue;
+      const desc = Object.getOwnPropertyDescriptor(navigator, key);
+      if (!desc) continue;
+
+      const protoDesc = {
+        enumerable: desc.enumerable !== false,
+        configurable: true // 浏览器中通常为 configurable: true
+      };
+
+      if (desc.get || desc.set) {
+        // 已经是访问器属性
+        if (desc.get) protoDesc.get = desc.get;
+        if (desc.set) protoDesc.set = desc.set;
+      } else {
+        // 数据属性 -> 转换为 getter（每次访问返回同一引用/值）
+        // 使用闭包捕获当前值，set 修改闭包变量
+        let storedValue = desc.value;
+        protoDesc.get = function() { return storedValue; };
+        if (desc.writable) {
+          protoDesc.set = function(v) { storedValue = v; };
+        }
+      }
+
+      try {
+        Object.defineProperty(Navigator.prototype, key, protoDesc);
+      } catch (e) { /* 属性可能已存在 */ }
+      // 删除实例上的属性（让原型上的 getter 接管）
+      try { delete navigator[key]; } catch (e) {}
+    }
+
+    for (const sym of ownSymbols) {
+      if (skipKeys.has(sym.toString())) continue;
+      const desc = Object.getOwnPropertyDescriptor(navigator, sym);
+      if (!desc) continue;
+      try {
+        Object.defineProperty(Navigator.prototype, sym, desc);
+      } catch (e) {}
+      try { delete navigator[sym]; } catch (e) {}
+    }
+  })();
+
+  Object.defineProperty(Navigator.prototype, Symbol.toStringTag, {
     value: 'Navigator',
     writable: false,
     configurable: true,
@@ -724,6 +888,8 @@ function install(sandbox, config = {}) {
     console.log('[verify] navigator.platform:', navigator.platform);
     console.log('[verify] navigator.plugins.length:', navigator.plugins.length);
     console.log('[verify] navigator.mimeTypes.length:', navigator.mimeTypes.length);
+    console.log('[verify] navigator own props count:', Object.getOwnPropertyNames(navigator).length);
+    console.log('[verify] Navigator.prototype props count:', Object.getOwnPropertyNames(Navigator.prototype).length);
   }
 }
 
