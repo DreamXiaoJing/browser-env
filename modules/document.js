@@ -153,6 +153,43 @@ function install(sandbox, config = {}) {
   makeNative(Element, 'Element');
   Object.setPrototypeOf(Element.prototype, Node.prototype);
 
+  // Element 上的导航属性（getter，在原型上，不可枚举）
+  Object.defineProperty(Element.prototype, 'childElementCount', {
+    get: function() { return this.children ? this.children.length : 0; },
+    configurable: true,
+    enumerable: false
+  });
+  Object.defineProperty(Element.prototype, 'firstElementChild', {
+    get: function() { return (this.children && this.children.length > 0) ? this.children[0] : null; },
+    configurable: true,
+    enumerable: false
+  });
+  Object.defineProperty(Element.prototype, 'lastElementChild', {
+    get: function() { return (this.children && this.children.length > 0) ? this.children[this.children.length - 1] : null; },
+    configurable: true,
+    enumerable: false
+  });
+  Object.defineProperty(Element.prototype, 'previousElementSibling', {
+    get: function() {
+      if (!this.parentNode || !this.parentNode.children) return null;
+      var siblings = this.parentNode.children;
+      var idx = siblings.indexOf(this);
+      return idx > 0 ? siblings[idx - 1] : null;
+    },
+    configurable: true,
+    enumerable: false
+  });
+  Object.defineProperty(Element.prototype, 'nextElementSibling', {
+    get: function() {
+      if (!this.parentNode || !this.parentNode.children) return null;
+      var siblings = this.parentNode.children;
+      var idx = siblings.indexOf(this);
+      return (idx >= 0 && idx < siblings.length - 1) ? siblings[idx + 1] : null;
+    },
+    configurable: true,
+    enumerable: false
+  });
+
   function HTMLElement() {}
   makeNative(HTMLElement, 'HTMLElement');
   Object.setPrototypeOf(HTMLElement.prototype, Element.prototype);
@@ -1417,14 +1454,21 @@ function install(sandbox, config = {}) {
       if (prop === 'toString') return makeNative(function() { return '[object HTMLAllCollection]'; }, 'toString');
       if (prop === 'toLocaleString') return makeNative(function() { return '[object HTMLAllCollection]'; }, 'toLocaleString');
       if (prop === 'valueOf') return makeNative(function() { return undefined; }, 'valueOf');
-      
+      // constructor 必须返回 HTMLAllCollection（真实浏览器：document.all.constructor === HTMLAllCollection）
+      if (prop === 'constructor') return HTMLAllCollection;
+      // __proto__ 必须返回 HTMLAllCollection.prototype（真实浏览器：document.all.__proto__ === HTMLAllCollection.prototype）
+      // 不能用 Reflect.get(HTMLAllCollection.prototype, '__proto__') 因为那会返回 Object.prototype
+      if (prop === '__proto__') return Object.getPrototypeOf(target);
+
       // 按 id 或 name 查找元素（namedItem 的快捷方式）
       for (var i = 0; i < _allElements.length; i++) {
         if (_allElements[i].id === prop) return _allElements[i];
         if (_allElements[i].name === prop) return _allElements[i];
       }
-      
-      return undefined;
+
+      // 对于其他属性，从原型链查找（避免 constructor 等属性返回 undefined）
+      // 真实浏览器中 document.all.constructor === HTMLAllCollection
+      return Reflect.get(HTMLAllCollection.prototype, prop);
     },
     set: function(target, prop, value) {
       if (typeof prop === 'string' && /^\d+$/.test(prop)) {
@@ -1835,6 +1879,32 @@ function install(sandbox, config = {}) {
 
   document.scrollingElement = document.documentElement;
   document.activeElement = document.body;
+
+  // ── 添加默认页面结构 ──
+  // 真实浏览器加载页面后 head/body 都有子元素（meta/title/div 等）。
+  // 反爬脚本（如京东 h5st）会检测 document.head.childElementCount 和
+  // document.body.childElementCount 作为环境指纹（bu3/bu6）。
+  // 这里添加合理的默认子元素，使沙箱环境更接近真实页面。
+  // head: 2 个子元素（meta charset + meta viewport），h5st 加载后会再追加 1 个 script，总计 3
+  // body: 4 个子元素（div 容器 + script + script + div）
+  var defaultMeta1 = document.createElement('meta');
+  defaultMeta1.setAttribute('charset', 'utf-8');
+  var defaultMeta2 = document.createElement('meta');
+  defaultMeta2.setAttribute('name', 'viewport');
+  defaultMeta2.setAttribute('content', 'width=device-width, initial-scale=1.0');
+  document.head.appendChild(defaultMeta1);
+  document.head.appendChild(defaultMeta2);
+
+  var defaultDiv1 = document.createElement('div');
+  defaultDiv1.id = 'app';
+  var defaultDiv2 = document.createElement('div');
+  defaultDiv2.className = 'container';
+  var defaultScript1 = document.createElement('script');
+  var defaultScript2 = document.createElement('script');
+  document.body.appendChild(defaultDiv1);
+  document.body.appendChild(defaultDiv2);
+  document.body.appendChild(defaultScript1);
+  document.body.appendChild(defaultScript2);
 
   // ── 填充 document.all 的内部元素列表 ──
   // 将 document 已有的顶层元素添加到 _allElements 中
