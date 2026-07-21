@@ -1386,9 +1386,11 @@ function install(sandbox, config = {}) {
             }};
           }, '[Symbol.iterator]');
         }
-        if (prop === Symbol.toPrimitive) {
-          return makeNative(function(hint) { return undefined; }, '[Symbol.toPrimitive]');
-        }
+        // 注意：不提供 Symbol.toPrimitive
+        // [[IsHTMLDDA]] 的 toPrimitive 行为（undefined）是引擎内部的，无法通过 Proxy 模拟
+        // 如果提供 Symbol.toPrimitive 返回 undefined，会导致 String(document.all) 返回 "undefined"
+        // 而真实浏览器 String(document.all) 返回 "[object HTMLAllCollection]"
+        // 所以不提供 toPrimitive，让 String() 走 toString() 路径
         if (prop === Symbol.toStringTag) {
           return 'HTMLAllCollection';
         }
@@ -1411,16 +1413,7 @@ function install(sandbox, config = {}) {
           return null;
         }, 'namedItem');
       }
-      if (prop === 'tags') {
-        return makeNative(function(tagName) {
-          var result = [];
-          var upper = tagName ? tagName.toUpperCase() : '';
-          for (var i = 0; i < _allElements.length; i++) {
-            if (_allElements[i].tagName === upper) result.push(_allElements[i]);
-          }
-          return result;
-        }, 'tags');
-      }
+      // 注意：tags 在真实 Chrome 中已从 document.all 移除（返回 undefined）
       if (prop === 'toString') return makeNative(function() { return '[object HTMLAllCollection]'; }, 'toString');
       if (prop === 'toLocaleString') return makeNative(function() { return '[object HTMLAllCollection]'; }, 'toLocaleString');
       if (prop === 'valueOf') return makeNative(function() { return undefined; }, 'valueOf');
@@ -1442,9 +1435,10 @@ function install(sandbox, config = {}) {
     has: function(target, prop) {
       if (typeof prop === 'number') return prop < _allElements.length;
       if (typeof prop === 'string' && /^\d+$/.test(prop)) return parseInt(prop, 10) < _allElements.length;
-      if (prop === 'length' || prop === 'item' || prop === 'namedItem' || prop === 'tags' ||
+      if (prop === 'length' || prop === 'item' || prop === 'namedItem' ||
           prop === 'toString' || prop === 'toLocaleString' || prop === 'valueOf' ||
-          prop === Symbol.iterator || prop === Symbol.toPrimitive || prop === Symbol.toStringTag) return true;
+          prop === Symbol.iterator || prop === Symbol.toStringTag) return true;
+      // 注意：tags 和 Symbol.toPrimitive 已移除
       for (var i = 0; i < _allElements.length; i++) {
         if (_allElements[i].id === prop || _allElements[i].name === prop) return true;
       }
@@ -1471,9 +1465,10 @@ function install(sandbox, config = {}) {
       if (prop === Symbol.toStringTag) {
         return { value: 'HTMLAllCollection', writable: false, configurable: true, enumerable: false };
       }
-      if (prop === Symbol.iterator || prop === Symbol.toPrimitive) {
+      if (prop === Symbol.iterator) {
         return { value: this.get(target, prop), writable: false, configurable: true, enumerable: false };
       }
+      // 注意：不提供 Symbol.toPrimitive 的描述符
       // 函数自有属性委托给目标
       return Reflect.getOwnPropertyDescriptor(target, prop);
     },
@@ -1848,10 +1843,52 @@ function install(sandbox, config = {}) {
   [document.documentElement, document.head, document.body].forEach(function(el) {
     if (!el.name) el.name = el.id || '';
   });
+
   // 设置 document.all 的原型指向
-  function HTMLAllCollection() {}
+  // 真实浏览器 HTMLAllCollection.prototype 属性（实测 Chrome 150）：
+  // ['constructor', 'item', 'length', 'namedItem']
+  // 注意：tags 不在原型上（已移除）
+  function HTMLAllCollection() {
+    // 真实浏览器：new HTMLAllCollection() 抛 TypeError: Illegal constructor
+    throw new TypeError("Failed to construct 'HTMLAllCollection': Illegal constructor");
+  }
   makeNative(HTMLAllCollection, 'HTMLAllCollection');
   Object.setPrototypeOf(document.all, HTMLAllCollection.prototype);
+
+  // 在原型上定义 item / namedItem / length（与真实浏览器一致）
+  Object.defineProperty(HTMLAllCollection.prototype, 'item', {
+    value: makeNative(function item(index) {
+      return document.all[parseInt(index, 10)] || null;
+    }, 'item'),
+    writable: true,
+    configurable: true,
+    enumerable: true
+  });
+  Object.defineProperty(HTMLAllCollection.prototype, 'namedItem', {
+    value: makeNative(function namedItem(name) {
+      var all = document.all;
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].id === name || all[i].name === name) return all[i];
+      }
+      return null;
+    }, 'namedItem'),
+    writable: true,
+    configurable: true,
+    enumerable: true
+  });
+  Object.defineProperty(HTMLAllCollection.prototype, 'length', {
+    get: makeNative(function() { return document.all.length; }, 'get length'),
+    set: undefined,
+    configurable: true,
+    enumerable: true
+  });
+  // Symbol.toStringTag 在原型上
+  Object.defineProperty(HTMLAllCollection.prototype, Symbol.toStringTag, {
+    value: 'HTMLAllCollection',
+    writable: false,
+    configurable: true,
+    enumerable: false
+  });
 
   // ── 安装 ──
   sandbox.Document = function Document() {};
